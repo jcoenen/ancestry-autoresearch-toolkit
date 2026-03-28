@@ -1,0 +1,292 @@
+import { useState, useMemo } from 'react'
+import { Link } from 'react-router-dom'
+import { usePeople, useData, extractYear, confidenceColor } from '../useData'
+import type { Person, SourceEntry } from '../types'
+
+/* ── Helpers ──────────────────────────────────────────────────── */
+
+function isMissing(value: string | undefined | null): boolean {
+  if (!value) return true
+  const v = value.trim()
+  return v === '' || v === '—' || v === '-' || v === 'Unknown'
+}
+
+/* ── Stat card ────────────────────────────────────────────────── */
+
+function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+  return (
+    <div className="rounded-lg border border-stone-200 bg-white p-5 text-center">
+      <div className="text-3xl font-bold text-stone-800">{value}</div>
+      <div className="text-sm text-stone-500 mt-1">{label}</div>
+      {sub && <div className="text-xs text-stone-400 mt-0.5">{sub}</div>}
+    </div>
+  )
+}
+
+/* ── Progress bar ─────────────────────────────────────────────── */
+
+function GapBar({ have, total, label }: { have: number; total: number; label: string }) {
+  const pct = total > 0 ? Math.round((have / total) * 100) : 0
+  return (
+    <div className="mb-4">
+      <div className="flex items-baseline justify-between mb-1">
+        <span className="text-sm text-stone-600">{label}</span>
+        <span className="text-sm text-stone-500 tabular-nums">{have} / {total} ({pct}%)</span>
+      </div>
+      <div className="h-2.5 bg-stone-100 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-amber-600/80 rounded-full transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+/* ── Collapsible section ──────────────────────────────────────── */
+
+function Section({ title, count, defaultOpen = false, children }: {
+  title: string
+  count: number
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <section className="mb-6">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between rounded-lg border border-stone-200 bg-white px-5 py-4 text-left hover:bg-stone-50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold text-stone-800">{title}</h2>
+          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-stone-100 text-stone-600 tabular-nums">
+            {count}
+          </span>
+        </div>
+        <svg
+          className={`w-5 h-5 text-stone-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="mt-2 rounded-lg border border-stone-200 bg-white p-5 sm:p-6">
+          {children}
+        </div>
+      )}
+    </section>
+  )
+}
+
+/* ── Person row ───────────────────────────────────────────────── */
+
+function PersonRow({ person, detail }: { person: Person; detail?: string }) {
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
+      <div className="flex items-center gap-2 min-w-0">
+        <Link to={`/people/${person.slug}`} className="text-sm font-medium text-amber-700 hover:text-amber-900 truncate">
+          {person.name}
+        </Link>
+        <span className="text-xs text-stone-400 shrink-0">{person.family}</span>
+        <span className={`px-1.5 py-0.5 rounded text-xs font-medium shrink-0 ${confidenceColor(person.confidence)}`}>
+          {person.confidence}
+        </span>
+      </div>
+      {detail && <span className="text-xs text-stone-400 shrink-0 ml-2">{detail}</span>}
+    </div>
+  )
+}
+
+/* ── Source row ────────────────────────────────────────────────── */
+
+function SourceRow({ source }: { source: SourceEntry }) {
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
+      <Link to={`/sources/${source.slug}`} className="text-sm font-medium text-amber-700 hover:text-amber-900 truncate">
+        {source.title || source.id}
+      </Link>
+      <span className="text-xs text-stone-400 shrink-0 ml-2">{source.type?.replace(/_/g, ' ')}</span>
+    </div>
+  )
+}
+
+/* ── Main page ────────────────────────────────────────────────── */
+
+export default function ResearchGapsPage() {
+  const people = usePeople()
+  const { sources } = useData()
+
+  const gaps = useMemo(() => {
+    const pub = people.filter(p => !p.privacy)
+    const total = pub.length
+
+    // Confidence
+    const stubs = pub.filter(p => p.confidence === 'stub')
+    const low = pub.filter(p => p.confidence === 'low')
+    const stubAndLow = [...stubs, ...low]
+
+    // Missing vitals
+    const missingBorn = pub.filter(p => !extractYear(p.born))
+    const missingDied = pub.filter(p => !extractYear(p.died))
+    const missingBirthplace = pub.filter(p => isMissing(p.birthplace))
+    const missingFather = pub.filter(p => !p.father && !p.fatherName)
+    const missingMother = pub.filter(p => !p.mother && !p.motherName)
+    const missingParents = pub.filter(p => (!p.father && !p.fatherName) || (!p.mother && !p.motherName))
+
+    // No sources / no media
+    const noSources = pub.filter(p => !p.sources || p.sources.length === 0)
+    const noMedia = pub.filter(p => !p.media || p.media.length === 0)
+
+    // Missing biography
+    const noBio = pub.filter(p => !p.biography || p.biography.trim() === '')
+
+    // Unverified OCR
+    const unverifiedOcr = sources.filter(s => s.ocrVerified === false)
+
+    // Completeness score: for each person, count how many of 6 key fields are present
+    const fields = ['born', 'died', 'birthplace', 'biography'] as const
+    let filledCount = 0
+    let totalFields = 0
+    for (const p of pub) {
+      for (const f of fields) {
+        totalFields++
+        if (f === 'born' || f === 'died') {
+          if (extractYear(p[f])) filledCount++
+        } else {
+          if (!isMissing(p[f])) filledCount++
+        }
+      }
+      // parents
+      totalFields += 2
+      if (p.father || p.fatherName) filledCount++
+      if (p.mother || p.motherName) filledCount++
+    }
+    const completeness = totalFields > 0 ? Math.round((filledCount / totalFields) * 100) : 0
+
+    return {
+      total,
+      stubAndLow, stubs, low,
+      missingBorn, missingDied, missingBirthplace,
+      missingFather, missingMother, missingParents,
+      noSources, noMedia, noBio,
+      unverifiedOcr,
+      completeness,
+    }
+  }, [people, sources])
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <h1 className="text-3xl font-bold text-stone-800 mb-2">Research Gaps</h1>
+      <p className="text-stone-500 mb-8">
+        What we don't know yet — use this to prioritize your next research session.
+      </p>
+
+      {/* Overview cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+        <StatCard label="People" value={gaps.total} />
+        <StatCard label="Completeness" value={`${gaps.completeness}%`} sub="of key fields filled" />
+        <StatCard label="Stubs + Low" value={gaps.stubAndLow.length} sub="need more research" />
+        <StatCard label="Unverified OCR" value={gaps.unverifiedOcr.length} sub="need manual review" />
+      </div>
+
+      {/* Progress overview */}
+      <div className="rounded-lg border border-stone-200 bg-white p-5 sm:p-6 mb-8">
+        <h2 className="text-sm font-semibold text-stone-500 uppercase tracking-wide mb-4">Field Coverage</h2>
+        <GapBar have={gaps.total - gaps.missingBorn.length} total={gaps.total} label="Birth dates" />
+        <GapBar have={gaps.total - gaps.missingDied.length} total={gaps.total} label="Death dates" />
+        <GapBar have={gaps.total - gaps.missingBirthplace.length} total={gaps.total} label="Birthplaces" />
+        <GapBar have={gaps.total - gaps.missingParents.length} total={gaps.total} label="At least one parent" />
+        <GapBar have={gaps.total - gaps.noSources.length} total={gaps.total} label="Has sources" />
+        <GapBar have={gaps.total - gaps.noBio.length} total={gaps.total} label="Has biography" />
+      </div>
+
+      {/* Collapsible detail sections */}
+      <Section title="Stub & Low Confidence" count={gaps.stubAndLow.length} defaultOpen>
+        {gaps.stubAndLow.length === 0 ? (
+          <p className="text-sm text-stone-500">No stub or low-confidence people. Nice!</p>
+        ) : (
+          <div>
+            {gaps.stubs.length > 0 && (
+              <>
+                <h3 className="text-sm font-semibold text-stone-500 uppercase tracking-wide mb-2">Stubs ({gaps.stubs.length})</h3>
+                {gaps.stubs.map(p => <PersonRow key={p.id} person={p} />)}
+              </>
+            )}
+            {gaps.low.length > 0 && (
+              <>
+                <h3 className="text-sm font-semibold text-stone-500 uppercase tracking-wide mb-2 mt-4">Low Confidence ({gaps.low.length})</h3>
+                {gaps.low.map(p => <PersonRow key={p.id} person={p} />)}
+              </>
+            )}
+          </div>
+        )}
+      </Section>
+
+      <Section title="Missing Birth Dates" count={gaps.missingBorn.length} defaultOpen>
+        {gaps.missingBorn.length === 0 ? (
+          <p className="text-sm text-stone-500">All people have birth dates.</p>
+        ) : (
+          gaps.missingBorn.map(p => <PersonRow key={p.id} person={p} />)
+        )}
+      </Section>
+
+      <Section title="Missing Death Dates" count={gaps.missingDied.length} defaultOpen>
+        {gaps.missingDied.length === 0 ? (
+          <p className="text-sm text-stone-500">All people have death dates.</p>
+        ) : (
+          gaps.missingDied.map(p => <PersonRow key={p.id} person={p} />)
+        )}
+      </Section>
+
+      <Section title="Missing Parents" count={gaps.missingParents.length}>
+        {gaps.missingParents.length === 0 ? (
+          <p className="text-sm text-stone-500">All people have at least one parent recorded.</p>
+        ) : (
+          gaps.missingParents.map(p => {
+            const missing = []
+            if (!p.father && !p.fatherName) missing.push('father')
+            if (!p.mother && !p.motherName) missing.push('mother')
+            return <PersonRow key={p.id} person={p} detail={`missing ${missing.join(' & ')}`} />
+          })
+        )}
+      </Section>
+
+      <Section title="No Sources Cited" count={gaps.noSources.length}>
+        {gaps.noSources.length === 0 ? (
+          <p className="text-sm text-stone-500">All people have at least one source.</p>
+        ) : (
+          gaps.noSources.map(p => <PersonRow key={p.id} person={p} />)
+        )}
+      </Section>
+
+      <Section title="No Media" count={gaps.noMedia.length}>
+        {gaps.noMedia.length === 0 ? (
+          <p className="text-sm text-stone-500">All people have media attached.</p>
+        ) : (
+          gaps.noMedia.map(p => <PersonRow key={p.id} person={p} />)
+        )}
+      </Section>
+
+      <Section title="Unverified OCR Sources" count={gaps.unverifiedOcr.length}>
+        {gaps.unverifiedOcr.length === 0 ? (
+          <p className="text-sm text-stone-500">All OCR sources have been manually verified.</p>
+        ) : (
+          <>
+            <p className="text-xs text-stone-400 mb-3">These sources were OCR'd from images and need manual verification against the original.</p>
+            {gaps.unverifiedOcr.map(s => <SourceRow key={s.id} source={s} />)}
+          </>
+        )}
+      </Section>
+
+      <Section title="Missing Biography" count={gaps.noBio.length}>
+        {gaps.noBio.length === 0 ? (
+          <p className="text-sm text-stone-500">All people have biographies.</p>
+        ) : (
+          gaps.noBio.map(p => <PersonRow key={p.id} person={p} />)
+        )}
+      </Section>
+    </div>
+  )
+}

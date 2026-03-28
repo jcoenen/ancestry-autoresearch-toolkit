@@ -1,0 +1,640 @@
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
+import { resolve, relative, dirname } from 'path';
+import { glob } from 'glob';
+import matter from 'gray-matter';
+
+// VAULT_ROOT env var points to the vault directory (e.g. Coenen_Genealogy/).
+// Falls back to ../../ for backward compatibility when site/ is inside the vault.
+const ROOT = process.env.VAULT_ROOT
+  ? resolve(process.cwd(), process.env.VAULT_ROOT)
+  : resolve(import.meta.dirname, '..', '..');
+const PEOPLE_DIR = resolve(ROOT, 'people');
+const MEDIA_INDEX = resolve(ROOT, 'media', '_Media_Index.md');
+const SOURCE_INDEX = resolve(ROOT, 'sources', '_Source_Index.md');
+const REPORT_FILE = resolve(ROOT, 'Ancestry_Report.md');
+const IMMIGRATION_FILE = resolve(ROOT, 'Immigration_Stories.md');
+const OUTPUT = resolve(import.meta.dirname, '..', 'src', 'data', 'site-data.json');
+
+// Load site config from vault root
+const CONFIG_FILE = resolve(ROOT, 'site-config.json');
+let siteConfig: Record<string, unknown> = {};
+if (existsSync(CONFIG_FILE)) {
+  siteConfig = JSON.parse(readFileSync(CONFIG_FILE, 'utf-8'));
+  console.log(`Site config: ${CONFIG_FILE}`);
+} else {
+  console.warn('WARNING: site-config.json not found in vault root — using defaults');
+}
+
+interface PersonData {
+  id: string;
+  name: string;
+  born: string;
+  died: string;
+  family: string;
+  privacy: boolean;
+  confidence: string;
+  sources: string[];
+  media: MediaEntry[];
+  filePath: string;
+  slug: string;
+  father: string;
+  fatherName: string;
+  mother: string;
+  motherName: string;
+  spouses: { name: string; id: string; marriageDate: string; link: string }[];
+  children: { name: string; id: string; link: string; spouseIndex?: number }[];
+  biography: string;
+  birthDateAnalysis: string;
+  birthplace: string;
+  deathPlace: string;
+  burial: string;
+  religion: string;
+  occupation: string;
+}
+
+interface MediaEntry {
+  path: string;
+  person: string;
+  sourceUrl: string;
+  dateDownloaded: string;
+  description: string;
+  type: string;
+}
+
+interface SourceEntry {
+  id: string;
+  file: string;
+  person: string;
+  date: string;
+  publisher: string;
+  type: string;
+  title: string;
+  reliability: string;
+  fagNumber: string;
+  record: string;
+  year: string;
+  slug: string;
+  fullText: string;
+  url: string;
+  persons: string[];
+  extractedFacts: string;
+  notes: string;
+  translationSlug: string;
+}
+
+const SOURCES_DIR = resolve(ROOT, 'sources');
+
+function formatDate(val: unknown): string {
+  if (!val) return '';
+  if (val instanceof Date) {
+    // gray-matter parses YAML dates as UTC midnight, use toISOString to get YYYY-MM-DD
+    return val.toISOString().split('T')[0];
+  }
+  return String(val);
+}
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function extractIdFromParens(text: string): string {
+  const match = text.match(/\(I(\d+)[),]/);
+  if (match) return `I${match[1]}`;
+  const match2 = text.match(/\(I(\d+)\)/);
+  return match2 ? `I${match2[1]}` : '';
+}
+
+function extractWikilink(text: string): string {
+  const match = text.match(/\[\[([^\]]+)\]\]/);
+  return match ? match[1] : '';
+}
+
+function extractNameFromWikilink(wikilink: string): string {
+  // Filename format: Surname_First_Middle.md -> extract and reorder
+  const filename = wikilink.split('/').pop() || '';
+  const base = filename.replace(/\.md$/, '');
+  const parts = base.split('_');
+  if (parts.length >= 2) {
+    // First part is surname, rest are given names: "Coenen_Roger_Francis" -> "Roger Francis Coenen"
+    const surname = parts[0];
+    const given = parts.slice(1).join(' ');
+    return `${given} ${surname}`;
+  }
+  return base.replace(/_/g, ' ');
+}
+
+function extractNameFromText(text: string): string {
+  // Remove wikilinks, IDs in parens, marriage info
+  let name = text
+    .replace(/\[\[[^\]]+\]\]/g, '')
+    .replace(/\(I\d+\)/g, '')
+    .replace(/,\s*m\.\s*.*/g, '')
+    .trim();
+  // If there's still text, return it
+  return name || '';
+}
+
+function parseVitalTable(content: string): Record<string, string> {
+  const table: Record<string, string> = {};
+  const lines = content.split('\n');
+  let inVitalSection = false;
+
+  for (const line of lines) {
+    if (line.includes('## Vital Information')) {
+      inVitalSection = true;
+      continue;
+    }
+    if (inVitalSection && line.startsWith('## ') && !line.includes('Vital')) {
+      break;
+    }
+    if (inVitalSection && line.startsWith('|') && !line.startsWith('|---') && !line.startsWith('| Field')) {
+      const parts = line.split('|').map(p => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        table[parts[0]] = parts[1];
+      }
+    }
+  }
+
+  return table;
+}
+
+function extractBiography(content: string): string {
+  const lines = content.split('\n');
+  let inBio = false;
+  const bioLines: string[] = [];
+
+  for (const line of lines) {
+    if (line.includes('## Biography')) {
+      inBio = true;
+      continue;
+    }
+    if (inBio && line.startsWith('## ')) {
+      break;
+    }
+    if (inBio && line.trim()) {
+      bioLines.push(line.trim());
+    }
+  }
+
+  return bioLines.join('\n\n');
+}
+
+function parseChildren(childrenStr: string): { name: string; id: string; link: string }[] {
+  if (!childrenStr || childrenStr === '—' || childrenStr.toLowerCase() === 'unknown') return [];
+
+  const children: { name: string; id: string; link: string }[] = [];
+  // Split by comma, but be careful about commas inside wikilinks
+  const segments: string[] = [];
+  let current = '';
+  let depth = 0;
+
+  for (const char of childrenStr) {
+    if (char === '[' || char === '(') depth++;
+    if (char === ']' || char === ')') depth--;
+    if (char === ',' && depth === 0) {
+      segments.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  if (current.trim()) segments.push(current.trim());
+
+  for (const seg of segments) {
+    const id = extractIdFromParens(seg);
+    const wikilink = extractWikilink(seg);
+
+    if (wikilink) {
+      const name = extractNameFromWikilink(wikilink);
+      children.push({ name, id, link: wikilink });
+    } else if (id) {
+      // Plain text name with ID — strip numbering, ID in parens, and trailing info
+      const name = seg.replace(/^\d+\.\s*/, '').replace(/\(I\d+[^)]*\)/g, '').replace(/,\s*(twin|b\.).*$/i, '').trim();
+      children.push({ name, id, link: '' });
+    } else {
+      // Plain text name without wikilink or GEDCOM ID — still include it
+      const name = seg.replace(/^\d+\.\s*/, '').replace(/\([^)]*\)/g, '').trim();
+      if (name && name !== '—') {
+        children.push({ name, id: '', link: '' });
+      }
+    }
+  }
+
+  return children;
+}
+
+function parseSpouse(spouseStr: string): { name: string; id: string; marriageDate: string; link: string } | null {
+  if (!spouseStr || spouseStr === '—') return null;
+
+  const id = extractIdFromParens(spouseStr);
+  const wikilink = extractWikilink(spouseStr);
+  const marriageMatch = spouseStr.match(/m\.\s*(.+?)(?:\s*\||\s*$)/);
+  const marriageDate = marriageMatch ? marriageMatch[1].trim() : '';
+
+  let name: string;
+  if (wikilink) {
+    name = extractNameFromWikilink(wikilink);
+  } else {
+    name = spouseStr
+      .replace(/\[\[[^\]]+\]\]/g, '')
+      .replace(/\(I\d+\)/g, '')
+      .replace(/,\s*m\.\s*.*/g, '')
+      .trim();
+  }
+
+  return { name, id, marriageDate, link: wikilink };
+}
+
+function parseMultipleSpouses(spouseStr: string): { name: string; id: string; marriageDate: string; link: string }[] {
+  if (!spouseStr || spouseStr === '—') return [];
+
+  // Check if there are multiple spouses separated by semicolons or " and "
+  const segments = spouseStr.split(/;\s*/).flatMap(s => {
+    // Don't split on "and" if it's part of a name
+    if (s.includes(') and ') || s.includes('] and ')) {
+      const parts = s.split(/\)\s*and\s*|\]\s*and\s*/);
+      return parts;
+    }
+    return [s];
+  });
+
+  // Usually just one spouse
+  const result: { name: string; id: string; marriageDate: string; link: string }[] = [];
+  const parsed = parseSpouse(spouseStr);
+  if (parsed) result.push(parsed);
+  return result;
+}
+
+function parseParent(parentStr: string): { id: string; name: string; link: string } {
+  if (!parentStr || parentStr === '—') return { id: '', name: '', link: '' };
+
+  const id = extractIdFromParens(parentStr);
+  const wikilink = extractWikilink(parentStr);
+
+  let name: string;
+  if (wikilink) {
+    name = extractNameFromWikilink(wikilink);
+  } else {
+    name = parentStr
+      .replace(/\[\[[^\]]+\]\]/g, '')
+      .replace(/\(I\d+\)/g, '')
+      .trim();
+  }
+
+  return { id, name, link: wikilink };
+}
+
+function inferMediaType(path: string): string {
+  if (path.startsWith('gravestones/')) return 'gravestone';
+  if (path.startsWith('portraits/')) return 'portrait';
+  if (path.startsWith('documents/')) return 'document';
+  if (path.startsWith('newspapers/')) return 'newspaper';
+  if (path.startsWith('group_photos/')) return 'group_photo';
+  if (path.startsWith('scans/')) return 'scan';
+  return 'other';
+}
+
+function parseMediaIndex(): MediaEntry[] {
+  if (!existsSync(MEDIA_INDEX)) return [];
+  const content = readFileSync(MEDIA_INDEX, 'utf-8');
+  const entries: MediaEntry[] = [];
+  const lines = content.split('\n');
+
+  for (const line of lines) {
+    if (!line.startsWith('|') || line.startsWith('|---') || line.startsWith('| Local Path') || line.startsWith('| File')) continue;
+    const parts = line.split('|').map(p => p.trim()).filter(Boolean);
+    if (parts.length >= 5 && parts[0] && parts[0] !== '—' && parts[0] !== '') {
+      entries.push({
+        path: parts[0],
+        person: parts[1],
+        sourceUrl: parts[2],
+        dateDownloaded: parts[3],
+        description: parts[4],
+        type: inferMediaType(parts[0]),
+      });
+    }
+  }
+
+  return entries;
+}
+
+function extractSection(content: string, heading: string): string {
+  const lines = content.split('\n');
+  let inSection = false;
+  const result: string[] = [];
+  for (const line of lines) {
+    if (line.match(new RegExp(`^##\\s+${heading}`, 'i'))) {
+      inSection = true;
+      continue;
+    }
+    if (inSection && line.match(/^## /)) break;
+    if (inSection) result.push(line);
+  }
+  return result.join('\n').trim();
+}
+
+function extractFullText(content: string): string {
+  // Get the blockquoted text (lines starting with >)
+  const lines = content.split('\n');
+  const quoted: string[] = [];
+  let inFullText = false;
+  for (const line of lines) {
+    if (line.match(/^##\s+Full Text/i)) { inFullText = true; continue; }
+    if (inFullText && line.match(/^## /)) break;
+    if (inFullText && line.startsWith('>')) {
+      quoted.push(line.replace(/^>\s?/, ''));
+    }
+  }
+  if (quoted.length > 0) return quoted.join('\n');
+  // Fallback: look for any blockquote in the content
+  const allQuoted: string[] = [];
+  for (const line of lines) {
+    if (line.startsWith('>')) allQuoted.push(line.replace(/^>\s?/, ''));
+  }
+  return allQuoted.join('\n');
+}
+
+async function parseSourceFiles(): Promise<SourceEntry[]> {
+  if (!existsSync(SOURCES_DIR)) return [];
+  const sourceFiles = await glob('**/*.md', { cwd: SOURCES_DIR });
+  const entries: SourceEntry[] = [];
+
+  for (const file of sourceFiles) {
+    if (file.startsWith('_')) continue; // skip index files
+    const fullPath = resolve(SOURCES_DIR, file);
+    const raw = readFileSync(fullPath, 'utf-8');
+    const { data: fm, content } = matter(raw);
+
+    if (fm.type !== 'source') {
+      console.warn(`WARNING: Skipping ${file} — type is "${fm.type}", expected "source"`);
+      continue;
+    }
+    if (!fm.source_id) {
+      console.warn(`WARNING: Skipping ${file} — missing source_id`);
+      continue;
+    }
+
+    const fullText = extractFullText(content);
+    const extractedFacts = extractSection(content, 'Extracted Facts');
+    const notes = extractSection(content, 'Notes');
+
+    entries.push({
+      id: fm.source_id || '',
+      file: file,
+      person: fm.title || '',
+      date: fm.date_of_document ? String(fm.date_of_document) : '',
+      publisher: fm.publisher || '',
+      type: fm.source_type || '',
+      title: fm.title || '',
+      reliability: fm.reliability || '',
+      fagNumber: fm.memorial_id ? String(fm.memorial_id) : '',
+      record: '',
+      year: '',
+      slug: slugify(fm.source_id || file),
+      fullText,
+      url: fm.url || '',
+      persons: fm.persons || [],
+      extractedFacts,
+      notes,
+      translationSlug: fm.translation_slug || '',
+      ocrVerified: fm.ocr_verified === true ? true : fm.ocr_verified === false ? false : null,
+      _mediaRefs: fm.media || [],
+    });
+  }
+
+  return entries;
+}
+
+async function main() {
+  console.log(`Building site data from vault: ${ROOT}`);
+
+  // Find all person markdown files
+  const personFiles = await glob('**/*.md', { cwd: PEOPLE_DIR });
+  console.log(`Found ${personFiles.length} person files`);
+
+  const people: PersonData[] = [];
+  const familySet = new Set<string>();
+
+  // Build a map of file paths to gedcom_ids for resolving wikilinks
+  const fileToId = new Map<string, string>();
+
+  for (const file of personFiles) {
+    const fullPath = resolve(PEOPLE_DIR, file);
+    const raw = readFileSync(fullPath, 'utf-8');
+    const { data: fm } = matter(raw);
+
+    if (fm.type !== 'person') continue;
+    if (fm.gedcom_id) {
+      fileToId.set(`people/${file}`, fm.gedcom_id);
+    }
+  }
+
+  for (const file of personFiles) {
+    const fullPath = resolve(PEOPLE_DIR, file);
+    const raw = readFileSync(fullPath, 'utf-8');
+    const { data: fm, content } = matter(raw);
+
+    if (fm.type !== 'person') continue;
+
+    const vitals = parseVitalTable(content);
+    const biography = extractBiography(content);
+    const birthDateAnalysis = extractSection(content, 'Birth Date Analysis');
+
+    const fatherInfo = parseParent(vitals['Father'] || '');
+    const motherInfo = parseParent(vitals['Mother'] || '');
+
+    // Collect spouses from all variant field names: Spouse, Spouse (1st), Marriage 1, etc.
+    const spouses: { name: string; id: string; marriageDate: string; link: string }[] = [];
+    for (const [key, value] of Object.entries(vitals)) {
+      if (key === 'Spouse' || /^Spouse \(/.test(key) || /^Marriage \d/.test(key)) {
+        const parsed = parseSpouse(value);
+        if (parsed) spouses.push(parsed);
+      }
+    }
+
+    // Collect children from all variant field names: Children, Children (1st marriage), Children (w/ ...), etc.
+    // When the field name indicates a marriage number, tag children with spouseIndex
+    const allChildren: { name: string; id: string; link: string; spouseIndex?: number }[] = [];
+    const ORDINAL_MAP: Record<string, number> = { '1st': 0, '2nd': 1, '3rd': 2, '4th': 3, '5th': 4 };
+    for (const [key, value] of Object.entries(vitals)) {
+      if (key === 'Children' || /^Children \(/.test(key)) {
+        const parsed = parseChildren(value);
+        // Extract marriage ordinal from field name, e.g. "Children (2nd marriage)" -> spouseIndex 1
+        const ordinalMatch = key.match(/\((\d+(?:st|nd|rd|th)) marriage\)/);
+        if (ordinalMatch && ordinalMatch[1] in ORDINAL_MAP) {
+          const spouseIndex = ORDINAL_MAP[ordinalMatch[1]];
+          for (const ch of parsed) {
+            ch.spouseIndex = spouseIndex;
+          }
+        }
+        allChildren.push(...parsed);
+      }
+    }
+    const children = allChildren;
+
+    // Resolve wikilink references to gedcom IDs
+    if (fatherInfo.link) {
+      fatherInfo.id = fileToId.get(fatherInfo.link) || fatherInfo.id;
+    }
+    if (motherInfo.link) {
+      motherInfo.id = fileToId.get(motherInfo.link) || motherInfo.id;
+    }
+    for (const sp of spouses) {
+      if (sp.link) {
+        sp.id = fileToId.get(sp.link) || sp.id;
+      }
+    }
+    for (const ch of children) {
+      if (ch.link) {
+        ch.id = fileToId.get(ch.link) || ch.id;
+      }
+    }
+
+    const isPrivate = fm.privacy === true;
+    const family = fm.family || '';
+    if (family) familySet.add(family);
+
+    const person: PersonData = {
+      id: fm.gedcom_id || '',
+      name: fm.name || '',
+      born: isPrivate ? '' : formatDate(fm.born),
+      died: isPrivate ? '' : formatDate(fm.died),
+      family,
+      privacy: isPrivate,
+      confidence: fm.confidence || 'unknown',
+      sources: fm.sources || [],
+      media: [],  // resolved below from _mediaRefs
+      _mediaRefs: fm.media || [],  // raw YAML paths, resolved after media index is parsed
+      filePath: file,
+      slug: slugify(fm.name || ''),
+      father: fatherInfo.id,
+      fatherName: fatherInfo.name,
+      mother: motherInfo.id,
+      motherName: motherInfo.name,
+      spouses,
+      children,
+      biography: isPrivate ? '' : biography,
+      birthDateAnalysis: isPrivate ? '' : birthDateAnalysis,
+      birthplace: isPrivate ? '' : (vitals['Birthplace'] || ''),
+      deathPlace: isPrivate ? '' : (vitals['Death Place'] || ''),
+      burial: isPrivate ? '' : (vitals['Burial'] || ''),
+      religion: vitals['Religion'] || '',
+      occupation: vitals['Occupation'] || '',
+    };
+
+    people.push(person);
+  }
+
+  // Parse media
+  const media = parseMediaIndex();
+  console.log(`Found ${media.length} media entries`);
+
+  // Build media lookup by local path for resolving person file media references
+  const mediaByPath = new Map<string, MediaEntry>();
+  for (const m of media) {
+    mediaByPath.set(m.path, m);
+  }
+
+  // Assign media to each person from their explicit YAML media: list (no name matching)
+  for (const person of people) {
+    const refs: string[] = (person as any)._mediaRefs || [];
+    person.media = refs
+      .map(path => mediaByPath.get(path))
+      .filter((m): m is MediaEntry => m !== undefined);
+    if (refs.length > 0 && person.media.length === 0) {
+      console.warn(`WARNING: ${person.name} has ${refs.length} media refs but none resolved: ${refs.join(', ')}`);
+    }
+    delete (person as any)._mediaRefs;
+  }
+
+  // Parse sources from actual source files
+  const sources = await parseSourceFiles();
+  console.log(`Found ${sources.length} source entries`);
+
+  // Resolve source media refs the same way as person media
+  for (const source of sources) {
+    const refs: string[] = (source as any)._mediaRefs || [];
+    (source as any).media = refs
+      .map((path: string) => mediaByPath.get(path))
+      .filter((m: MediaEntry | undefined): m is MediaEntry => m !== undefined);
+    delete (source as any)._mediaRefs;
+  }
+
+  // Calculate stats
+  const publicPeople = people.filter(p => !p.privacy);
+
+  const oldestWithApprox = publicPeople
+    .filter(p => p.born)
+    .sort((a, b) => {
+      const aYear = a.born.replace(/[^0-9]/g, '').slice(0, 4);
+      const bYear = b.born.replace(/[^0-9]/g, '').slice(0, 4);
+      return Number(aYear || 9999) - Number(bYear || 9999);
+    })[0];
+
+  const generationsTraced = (siteConfig.generationsTraced as number) || 0;
+
+  const stats = {
+    totalPeople: people.length,
+    totalSources: sources.length,
+    totalMedia: media.length,
+    oldestAncestor: oldestWithApprox
+      ? `${oldestWithApprox.name} (${oldestWithApprox.born})`
+      : 'Unknown',
+    generationsTraced,
+    familyLines: Array.from(familySet).sort(),
+  };
+
+  // Read the ancestry report markdown
+  let report = '';
+  try {
+    report = readFileSync(REPORT_FILE, 'utf-8');
+    console.log(`Report: ${report.length} characters`);
+  } catch {
+    console.warn('WARNING: Ancestry_Report.md not found');
+  }
+
+
+  // Read the immigration stories markdown
+  let immigrationStories = '';
+  try {
+    immigrationStories = readFileSync(IMMIGRATION_FILE, 'utf-8');
+    console.log(`Immigration stories: ${immigrationStories.length} characters`);
+  } catch {
+    console.warn('WARNING: Immigration_Stories.md not found');
+  }
+
+  // Read translation documents (markdown files linked as media on source files)
+  const translations: Record<string, string> = {};
+  const TRANSLATIONS_DIR = resolve(ROOT, 'media', 'documents');
+  try {
+    const translationFiles = await glob('*_ENGLISH.md', { cwd: TRANSLATIONS_DIR });
+    for (const tf of translationFiles) {
+      const slug = tf.replace('.md', '').toLowerCase().replace(/_/g, '-');
+      translations[slug] = readFileSync(resolve(TRANSLATIONS_DIR, tf), 'utf-8');
+      console.log(`Translation: ${tf} (${translations[slug].length} chars)`);
+    }
+  } catch {
+    // no translations found, that's fine
+  }
+
+  const output = { people, media, sources, stats, report, translations, immigrationStories, config: siteConfig };
+
+  mkdirSync(dirname(OUTPUT), { recursive: true });
+  writeFileSync(OUTPUT, JSON.stringify(output, null, 2));
+
+  console.log(`\nOutput: ${relative(process.cwd(), OUTPUT)}`);
+  console.log(`People: ${stats.totalPeople}`);
+  console.log(`Sources: ${stats.totalSources}`);
+  console.log(`Media: ${stats.totalMedia}`);
+  console.log(`Family lines: ${stats.familyLines.join(', ')}`);
+  console.log(`Oldest ancestor: ${stats.oldestAncestor}`);
+  console.log('\nDone!');
+}
+
+main().catch(err => {
+  console.error('Build failed:', err);
+  process.exit(1);
+});

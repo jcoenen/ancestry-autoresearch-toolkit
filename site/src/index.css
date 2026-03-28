@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+@theme {
+  --color-amber-650: #b45309;
+  --color-parchment: #faf8f5;
+}
+
+/* Base typography for older users — 16px minimum, comfortable line-height */
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  line-height: 1.6;
+}
+
+/* Prevent iOS zoom on input focus */
+input, select, textarea {
+  font-size: 16px;
+}
+
+/* Smooth fade-in for tree navigation transitions */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out;
+}
+
+/* Ensure tap targets are accessible (44px minimum per Apple HIG) */
+@media (max-width: 640px) {
+  a, button {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  /* Exclude inline text links from min-height */
+  p a, td a, span a, .text-sm a {
+    min-height: auto;
+    display: inline;
+  }
+}
+
+/* ── Print stylesheet ─────────────────────────────────────────── */
+@media print {
+  /* Hide chrome: nav, footer, interactive controls */
+  nav, footer,
+  .print-hide {
+    display: none !important;
+  }
+
+  /* Reset backgrounds and shadows */
+  body {
+    background: white;
+    color: black;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+
+  /* Remove card borders/shadows for clean print */
+  .rounded-lg, .rounded-xl {
+    border-color: #d4d4d4 !important;
+    box-shadow: none !important;
+  }
+
+  /* Full-width layout, tighter margins */
+  .max-w-4xl, .max-w-6xl {
+    max-width: 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  /* Links: show as text, keep color subtle */
+  a {
+    color: #1c1917 !important;
+    text-decoration: none !important;
+  }
+
+  /* Tables: solid borders for print */
+  table {
+    border-collapse: collapse;
+  }
+  th, td {
+    border: 1px solid #d4d4d4 !important;
+    padding: 4pt 8pt !important;
+  }
+
+  /* Images: constrain to avoid page overflow */
+  img {
+    max-height: 3in;
+    object-fit: contain;
+  }
+
+  /* Page break control */
+  section {
+    break-inside: avoid;
+  }
+  h1, h2, h3 {
+    break-after: avoid;
+  }
+
+  /* Confidence badge: print-friendly */
+  .rounded-full {
+    border: 1px solid #a8a29e;
+  }
+
+  /* Person page header: tighter spacing */
+  .py-8 {
+    padding-top: 0 !important;
+  }
+}
