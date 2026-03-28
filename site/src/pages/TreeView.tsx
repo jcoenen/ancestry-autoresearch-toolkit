@@ -12,7 +12,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import dagre from '@dagrejs/dagre'
-import { usePeople, formatYear } from '../useData'
+import { usePeople, useSiteConfig, formatYear } from '../useData'
 import type { Person } from '../types'
 
 /* ── Types ──────────────────────────────────────────────────── */
@@ -852,9 +852,11 @@ export default function TreeView() {
   const { personId } = useParams<{ personId: string }>()
   const navigate = useNavigate()
   const people = usePeople()
+  const config = useSiteConfig()
+  const rootId = config.rootPersonId || 'I1'
   const [view, setView] = useState<'landscape' | 'pedigree' | 'descendants'>('landscape')
 
-  const focusId = personId || 'I1'
+  const focusId = personId || rootId
   const focusPerson = people.find(p => p.id === focusId)
 
   const handleNavigate = useCallback((id: string) => {
@@ -872,7 +874,7 @@ export default function TreeView() {
       if (person.father) walkUp(person.father)
       if (person.mother) walkUp(person.mother)
     }
-    const root = people.find(p => p.id === 'I1')
+    const root = people.find(p => p.id === rootId)
     if (root) {
       ids.add(root.id)
       if (root.father) walkUp(root.father)
@@ -890,7 +892,7 @@ export default function TreeView() {
 
   const patrilinealIds = useMemo(() => {
     const ids = new Set<string>()
-    let current = people.find(p => p.id === 'I1')
+    let current = people.find(p => p.id === rootId)
     const seen = new Set<string>()
     while (current && !seen.has(current.id)) {
       seen.add(current.id)
@@ -902,7 +904,7 @@ export default function TreeView() {
 
   const extendedLine = useMemo(() => {
     const line: Person[] = []
-    let current = people.find(p => p.id === 'I1')
+    let current = people.find(p => p.id === rootId)
     const seen = new Set<string>()
     while (current && !seen.has(current.id)) {
       seen.add(current.id)
@@ -913,7 +915,7 @@ export default function TreeView() {
   }, [people])
 
   const { layoutNodes, edges } = useMemo(() => {
-    const tree = buildPedigreeFromRoot(people, 'I1', 8)
+    const tree = buildPedigreeFromRoot(people, rootId, 8)
     if (!tree) return { layoutNodes: [], edges: [] }
     const nodes: Node<CoupleCardData>[] = []
     const edgeList: Edge[] = []
@@ -938,10 +940,10 @@ export default function TreeView() {
           {view === 'landscape' && focusPerson ? (
             <p className="mt-1 text-stone-500">
               Viewing: <span className="font-medium text-stone-700">{focusPerson.name}</span>
-              {focusId !== 'I1' && (
-                <button onClick={() => handleNavigate('I1')}
+              {focusId !== rootId && (
+                <button onClick={() => handleNavigate(rootId)}
                   className="ml-3 text-sm text-amber-700 hover:text-amber-900 hover:underline">
-                  Back to Jeremy
+                  Back to root
                 </button>
               )}
               <span className="ml-4 text-xs">
@@ -951,7 +953,7 @@ export default function TreeView() {
             </p>
           ) : (
             <p className="mt-2 text-stone-500">
-              {extendedLine.length} generations from Jeremy to {oldest?.name || 'unknown'} ({formatYear(oldest?.born || '')}).
+              {extendedLine.length} generations from {extendedLine[0]?.name || 'root'} to {oldest?.name || 'unknown'} ({formatYear(oldest?.born || '')}).
               <span className="ml-2 text-xs">
                 <span className="inline-block w-3 h-0.5 bg-blue-500 mr-1 align-middle" />paternal
                 <span className="inline-block w-3 h-0.5 bg-pink-500 ml-3 mr-1 align-middle" />maternal
