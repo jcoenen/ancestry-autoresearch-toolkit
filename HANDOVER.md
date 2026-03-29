@@ -2,6 +2,44 @@
 
 ## What Was Done
 
+### Session 5: Complete Privacy Redaction (#5)
+
+Implemented full privacy redaction so `privacy: true` people have their personal details stripped from `site-data.json` at build time, while preserving their name and family structure in the tree.
+
+#### Design
+
+- **Always visible:** name, gender, family, confidence, slug, father/mother links, spouse links (names/IDs), children links
+- **Redacted from published JSON:** all dates, places, vitals, biography, birth date analysis, sources, media, marriage dates
+- **Cross-spouse protection:** marriage dates blanked on public people married to private people
+- **Global media filtering:** media items exclusively associated with private people excluded from published media array
+
+#### Build Pipeline (`build-data.ts`)
+
+- Blanked 6 previously leaking fields: `religion`, `occupation`, `nickname`, `education`, `residence`, `familySearchId`
+- Blanked `sources` (was shipping full array) and `_mediaRefs` (was resolving media) for private people
+- Added marriage date blanking on private people's own spouse records
+- Added `redactCrossSpouseMarriageDates()` post-processing pass
+- Filtered global media array — private-only media excluded, shared media kept
+- Stats use filtered media count
+
+#### GEDCOM Export (`export-gedcom.ts`)
+
+- Private people now get minimal INDI records (name + sex + `RESN confidential` + FAMC/FAMS links) instead of being skipped entirely — fixes GEDCOM validity for downstream software
+- Marriage/divorce events suppressed on FAM records where either spouse is private
+- INDI count now includes all people
+
+#### UI Defense-in-Depth (`PersonPage.tsx`, `HomePage.tsx`)
+
+- Privacy notice banner on PersonPage for private people
+- Explicit `!person.privacy` guards on biography, birth date analysis, sources, and media sections
+- HomePage birthplace display guarded
+
+#### Testable Helpers (`build-helpers.ts`)
+
+- Extracted `applyPrivacyRedaction()` — blanks all personal detail fields, sources, media, marriage dates
+- Extracted `redactCrossSpouseMarriageDates()` — cross-spouse marriage date blanking
+- 9 new tests in `privacy-redaction.test.ts`
+
 ### Session 4: GEDCOM Import (#6) + Date Parsing Fix (#14)
 
 #### GEDCOM Import
@@ -61,30 +99,31 @@ Promoted 6 supplemental vital fields to parsed + added 2 new ones:
 | Divorce | `divorce` | `DIV` (on FAM record) |
 | Cremation | `cremation` | `CREM` |
 
-### Files Modified/Created (Session 4)
+## Files Modified/Created (Session 5)
 
 **New files:**
-- `site/scripts/import-gedcom.ts` — GEDCOM 5.5.1 import script
-- `site/scripts/__tests__/import-gedcom.test.ts` — 39 tests for import functions
-- `site/scripts/__tests__/date-parsing.test.ts` — 25 tests for date parsing
+- `site/scripts/__tests__/privacy-redaction.test.ts` — 9 tests for privacy redaction helpers
 
 **Modified files:**
-- `site/package.json` — Added `import:gedcom` script
-- `site/scripts/export-gedcom.ts` — Added "DD Month YYYY" to `toGedcomDate()`, fixed marriage date regex
-- `site/src/onThisDayEvents.ts` — Updated `parseFullDate()` and `parseMarriageDate()` to support all 3 date formats
+- `site/scripts/build-data.ts` — Complete build-time privacy redaction + media filtering
+- `site/scripts/export-gedcom.ts` — Minimal INDI for private people, FAM privacy suppression
+- `site/scripts/lib/build-helpers.ts` — `applyPrivacyRedaction()` and `redactCrossSpouseMarriageDates()`
+- `site/src/pages/PersonPage.tsx` — Privacy notice banner + section guards
+- `site/src/pages/HomePage.tsx` — Birthplace privacy guard
 
 ## Commits
 
+- `7c08029` — Complete privacy redaction for private people across build pipeline, GEDCOM export, and UI
 - `69cfd67` — Add GEDCOM import and fix date parsing consistency across all parsers
 - `918169c` — Add error boundaries, GEDCOM export, gender field, expanded On This Day, atomic writes, and orphaned source enforcement
 
 ## Improvements Backlog Status
 
-**Done:** #1, #2, #3, #4, #6 (export + import), #7, #8, #10, #14
-**Remaining:** #5 (privacy redaction), #9 (media upload pipeline), #11-13, #15-17
+**Done:** #1, #2, #3, #4, #5, #6 (export + import), #7, #8, #10, #14
+**Remaining:** #9 (media upload pipeline), #11 (incremental builds), #12 (actionable research gaps), #13 (full-text search), #15 (translation workflow), #16 (cross-vault linking), #17 (onboarding/init)
 
 ## State
 
-- All 168 tests passing
+- All 177 tests passing
 - TypeScript type-checks clean
 - Pushed to `master`

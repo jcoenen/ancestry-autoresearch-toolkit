@@ -27,7 +27,7 @@ One toolkit, multiple family projects. Each family gets its own repo with this t
 - **Research gaps** — auto-detected stubs, missing sources, broken links
 - **Immigration stories** — narrative page rendered from vault markdown
 - **Family filter** — dropdown to filter any view by surname
-- **Privacy controls** — living persons automatically redacted
+- **Privacy controls** — `privacy: true` people keep their name and family position in the tree but all personal details (dates, places, vitals, biography, sources, media) are stripped from the published site at build time. GEDCOM export emits minimal records with `RESN confidential`
 - **Print stylesheet** — clean print output for sharing
 - **Mobile responsive** — works on phones and tablets
 - **Fully configurable** — family name, hero text, surname origin story, footer all driven by `site-config.json`
