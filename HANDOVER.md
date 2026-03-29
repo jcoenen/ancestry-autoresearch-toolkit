@@ -2,6 +2,32 @@
 
 ## What Was Done
 
+### Session 8: Smart Media Uploader (#9)
+
+Replaced the dumb `upload-media.sh` (re-uploaded every file every time) with a smart TypeScript uploader that tracks file hashes.
+
+#### Implementation
+
+- **`site/scripts/upload-media.ts`** — SHA-256 manifest-based uploader:
+  - Maintains `.media-manifest.json` in vault root tracking `{ path → sha256 }` for each uploaded file
+  - On each run, hashes all local media files and compares to manifest — only uploads new or changed files
+  - Detects bucket changes and triggers full re-upload
+  - `--force` — ignore manifest, re-upload everything
+  - `--dry-run` — preview what would be uploaded/deleted without making changes
+  - `--delete` — removes R2 objects for files deleted locally
+  - Reports per-file status (ok/FAILED) and summary counts
+
+- **`npm run upload:media`** — runs the smart uploader directly
+- **`npm run deploy`** — full pipeline: `build:data → upload:media → build`
+- `.media-manifest.json` added to `.gitignore`
+
+#### Files Created
+- `site/scripts/upload-media.ts`
+
+#### Files Modified
+- `site/package.json` — added `upload:media` and `deploy` scripts
+- `.gitignore` — added `.media-manifest.json`
+
 ### Session 7: Interactive Project Initialization (#17)
 
 Added an interactive init wizard that scaffolds a complete family project in one guided flow.
@@ -156,6 +182,7 @@ Promoted 6 supplemental vital fields to parsed + added 2 new ones:
 
 ## Commits
 
+- `55fc9ad` — Add smart media uploader with SHA-256 diffing
 - `577371f` — Add interactive project initialization wizard
 - `88e6d89` — Add global full-text search across people and sources
 - `7c08029` — Complete privacy redaction for private people across build pipeline, GEDCOM export, and UI
@@ -164,9 +191,9 @@ Promoted 6 supplemental vital fields to parsed + added 2 new ones:
 
 ## Improvements Backlog Status
 
-**Done:** #1, #2, #3, #4, #5, #6 (export + import), #7, #8, #10, #13, #14, #17
+**Done:** #1, #2, #3, #4, #5, #6 (export + import), #7, #8, #9, #10, #13, #14, #17
 **Dropped:** #11 (incremental builds — not worth the complexity)
-**Remaining:** #9 (media upload pipeline), #12 (actionable research gaps), #15 (translation workflow), #16 (cross-vault linking)
+**Remaining:** #12 (actionable research gaps), #15 (translation workflow), #16 (cross-vault linking)
 
 ## State
 

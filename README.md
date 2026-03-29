@@ -224,23 +224,33 @@ The `site-config.json` in your vault root controls all family-specific site cont
 
 ## Deploying
 
-### Build for production
+### Full deploy (recommended)
 
 ```bash
-npm run build
+npm run deploy
 ```
 
-Output goes to `toolkit/site/dist/`. Deploy to any static host (Vercel, Netlify, Cloudflare Pages, etc.).
+Runs the complete pipeline: build data from vault → upload media to R2 → Vite production build. Output goes to `toolkit/site/dist/`. Deploy to any static host (Vercel, Netlify, Cloudflare Pages, etc.).
 
 ### Media hosting
 
-Images are stored locally and gitignored. For production, upload to Cloudflare R2 (or any CDN) and set `VITE_MEDIA_BASE_URL` at build time:
+Images are stored locally and gitignored. For production, configure the `media` section in `site-config.json` and set `CLOUDFLARE_API_TOKEN`:
+
+```bash
+CLOUDFLARE_API_TOKEN=xxx npm run deploy
+```
+
+The smart media uploader (`npm run upload:media`) tracks SHA-256 hashes in `.media-manifest.json` and only uploads new or changed files. Flags:
+
+- `--force` — re-upload everything regardless of manifest
+- `--dry-run` — preview what would change without uploading
+- `--delete` — remove R2 objects for locally deleted files
+
+Set `VITE_MEDIA_BASE_URL` at build time if not using the R2 public URL from site-config:
 
 ```bash
 VITE_MEDIA_BASE_URL="https://your-r2-bucket.r2.dev/" npm run build
 ```
-
-The included `upload-media.sh` script handles R2 uploads if you configure the `media` section in `site-config.json`.
 
 ## Tech Stack
 
