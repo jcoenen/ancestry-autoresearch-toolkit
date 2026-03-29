@@ -89,14 +89,18 @@ describe('isRecognizedVitalField', () => {
     expect(isRecognizedVitalField('Children')).toBe(true);
     expect(isRecognizedVitalField('Religion')).toBe(true);
     expect(isRecognizedVitalField('Occupation')).toBe(true);
+    expect(isRecognizedVitalField('Military')).toBe(true);
+    expect(isRecognizedVitalField('Immigration')).toBe(true);
+    expect(isRecognizedVitalField('Emigration')).toBe(true);
+    expect(isRecognizedVitalField('Naturalization')).toBe(true);
+    expect(isRecognizedVitalField('Cause of Death')).toBe(true);
+    expect(isRecognizedVitalField('Confirmation')).toBe(true);
     expect(isRecognizedVitalField('Burial')).toBe(true);
   });
 
   it('recognizes supplemental fields', () => {
     expect(isRecognizedVitalField('Also Known As')).toBe(true);
     expect(isRecognizedVitalField('Baptized')).toBe(true);
-    expect(isRecognizedVitalField('Cause of Death')).toBe(true);
-    expect(isRecognizedVitalField('Immigration')).toBe(true);
     expect(isRecognizedVitalField('FamilySearch ID')).toBe(true);
     expect(isRecognizedVitalField('Nickname')).toBe(true);
   });

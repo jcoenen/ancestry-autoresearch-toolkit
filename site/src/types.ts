@@ -39,6 +39,12 @@ export interface Person {
   burial: string;
   religion: string;
   occupation: string;
+  military: string;
+  immigration: string;
+  emigration: string;
+  naturalization: string;
+  causeOfDeath: string;
+  confirmation: string;
 }
 
 export interface MediaEntry {

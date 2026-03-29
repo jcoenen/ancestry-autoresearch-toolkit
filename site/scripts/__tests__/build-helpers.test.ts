@@ -196,6 +196,42 @@ describe('parseVitalTable', () => {
     expect(Object.keys(table)).toHaveLength(1);
     expect(table['Religion']).toBe('Catholic');
   });
+
+  it('parses Military field', () => {
+    const content = [
+      '## Vital Information',
+      '| Field | Value | Source |',
+      '|-------|-------|--------|',
+      '| Born | 1895 | — |',
+      '| Military | U.S. Army, Pvt., Co. K, 142nd Infantry, 1917–1919 | SRC-MIL-001 |',
+      '| Died | 1960 | — |',
+      '## Biography',
+    ].join('\n');
+
+    const table = parseVitalTable(content);
+    expect(table['Military']).toBe('U.S. Army, Pvt., Co. K, 142nd Infantry, 1917–1919');
+  });
+
+  it('parses extended vital fields (immigration, emigration, naturalization, cause of death, confirmation)', () => {
+    const content = [
+      '## Vital Information',
+      '| Field | Value | Source |',
+      '|-------|-------|--------|',
+      '| Immigration | 1882, from Koblenz, Germany to Kewaunee, WI | SRC-IMM-001 |',
+      '| Emigration | 1882, departed Bremen, Germany | — |',
+      '| Naturalization | 1888, Kewaunee County Circuit Court | SRC-CERT-010 |',
+      '| Cause of Death | Pneumonia | SRC-OBIT-024 |',
+      '| Confirmation | 1870, St. Kastor Church, Koblenz | SRC-CHR-005 |',
+      '## Biography',
+    ].join('\n');
+
+    const table = parseVitalTable(content);
+    expect(table['Immigration']).toBe('1882, from Koblenz, Germany to Kewaunee, WI');
+    expect(table['Emigration']).toBe('1882, departed Bremen, Germany');
+    expect(table['Naturalization']).toBe('1888, Kewaunee County Circuit Court');
+    expect(table['Cause of Death']).toBe('Pneumonia');
+    expect(table['Confirmation']).toBe('1870, St. Kastor Church, Koblenz');
+  });
 });
 
 // ── extractBiography ──

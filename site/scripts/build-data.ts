@@ -65,6 +65,12 @@ interface PersonData {
   burial: string;
   religion: string;
   occupation: string;
+  military: string;
+  immigration: string;
+  emigration: string;
+  naturalization: string;
+  causeOfDeath: string;
+  confirmation: string;
   _mediaRefs: string[];
 }
 
@@ -294,6 +300,12 @@ async function main() {
       burial: isPrivate ? '' : (vitals['Burial'] || ''),
       religion: vitals['Religion'] || '',
       occupation: vitals['Occupation'] || '',
+      military: isPrivate ? '' : (vitals['Military'] || ''),
+      immigration: isPrivate ? '' : (vitals['Immigration'] || ''),
+      emigration: isPrivate ? '' : (vitals['Emigration'] || ''),
+      naturalization: isPrivate ? '' : (vitals['Naturalization'] || ''),
+      causeOfDeath: isPrivate ? '' : (vitals['Cause of Death'] || ''),
+      confirmation: isPrivate ? '' : (vitals['Confirmation'] || ''),
     };
 
     people.push(person);

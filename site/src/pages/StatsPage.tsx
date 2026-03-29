@@ -214,6 +214,32 @@ export default function StatsPage() {
       .sort((a, b) => b[1] - a[1])
       .map(([t, count]) => ({ label: t, value: count }))
 
+    // --- Immigration ---
+    const immCounts = new Map<string, number>()
+    for (const p of pub) {
+      if (p.immigration && p.immigration !== '—') {
+        const imm = p.immigration.trim()
+        immCounts.set(imm, (immCounts.get(imm) || 0) + 1)
+      }
+    }
+    const topImmigration = [...immCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+    const totalImmigrants = [...immCounts.values()].reduce((s, n) => s + n, 0)
+
+    // --- Military ---
+    const milCounts = new Map<string, number>()
+    for (const p of pub) {
+      if (p.military && p.military !== '—') {
+        const mil = p.military.trim()
+        milCounts.set(mil, (milCounts.get(mil) || 0) + 1)
+      }
+    }
+    const topMilitary = [...milCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+    const totalMilitary = [...milCounts.values()].reduce((s, n) => s + n, 0)
+
     // --- Religion (normalize variants) ---
     const relCounts = new Map<string, number>()
     for (const p of pub) {
@@ -243,7 +269,7 @@ export default function StatsPage() {
       avgLifespan, longest, shortest, avgLifespanByCentury,
       avgChildren, childDistItems, mostChildren,
       birthDecadeItems, deathDecadeItems,
-      topOccupations, topPlaces, topReligions,
+      topOccupations, topPlaces, topImmigration, totalImmigrants, topMilitary, totalMilitary, topReligions,
       confCounts, sourceTypeItems,
       withLifespan: withLifespan.length,
     }
@@ -342,6 +368,20 @@ export default function StatsPage() {
       {stats.topOccupations.length > 0 && (
         <Section title="Occupations">
           <BarChart items={stats.topOccupations.map(([occ, count]) => ({ label: occ, value: count }))} />
+        </Section>
+      )}
+
+      {/* Immigration */}
+      {stats.topImmigration.length > 0 && (
+        <Section title={`Immigration (${stats.totalImmigrants} people)`}>
+          <BarChart items={stats.topImmigration.map(([imm, count]) => ({ label: imm, value: count }))} />
+        </Section>
+      )}
+
+      {/* Military */}
+      {stats.topMilitary.length > 0 && (
+        <Section title={`Military Service (${stats.totalMilitary} people)`}>
+          <BarChart items={stats.topMilitary.map(([mil, count]) => ({ label: mil, value: count }))} />
         </Section>
       )}
 

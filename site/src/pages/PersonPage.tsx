@@ -509,14 +509,32 @@ export default function PersonPage() {
                 {person.deathPlace && person.deathPlace !== '—' && (
                   <VitalRow label="Death Place" value={person.deathPlace} />
                 )}
+                {person.causeOfDeath && person.causeOfDeath !== '—' && (
+                  <VitalRow label="Cause of Death" value={person.causeOfDeath} />
+                )}
                 {person.burial && person.burial !== '—' && (
                   <VitalRow label="Burial" value={person.burial} />
                 )}
                 {person.religion && person.religion !== '—' && (
                   <VitalRow label="Religion" value={person.religion} />
                 )}
+                {person.confirmation && person.confirmation !== '—' && (
+                  <VitalRow label="Confirmation" value={person.confirmation} />
+                )}
                 {person.occupation && person.occupation !== '—' && (
                   <VitalRow label="Occupation" value={person.occupation} />
+                )}
+                {person.military && person.military !== '—' && (
+                  <VitalRow label="Military" value={person.military} />
+                )}
+                {person.immigration && person.immigration !== '—' && (
+                  <VitalRow label="Immigration" value={person.immigration} />
+                )}
+                {person.emigration && person.emigration !== '—' && (
+                  <VitalRow label="Emigration" value={person.emigration} />
+                )}
+                {person.naturalization && person.naturalization !== '—' && (
+                  <VitalRow label="Naturalization" value={person.naturalization} />
                 )}
               </tbody>
             </table>
