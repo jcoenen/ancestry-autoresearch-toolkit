@@ -490,6 +490,13 @@ export default function PersonPage() {
         </div>
       </div>
 
+      {/* Privacy Notice */}
+      {person.privacy && (
+        <div className="mb-8 rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">
+          <strong>Private:</strong> This person is marked as private. Personal details, sources, and media are not displayed.
+        </div>
+      )}
+
       {/* Vital Information */}
       {!person.privacy && (
         <section className="mb-8">
@@ -572,7 +579,7 @@ export default function PersonPage() {
       </section>
 
       {/* Biography */}
-      {person.biography && (
+      {!person.privacy && person.biography && (
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-stone-800 mb-3">Biography</h2>
           <div className="rounded-lg border border-stone-200 bg-white p-5">
@@ -586,7 +593,7 @@ export default function PersonPage() {
       )}
 
       {/* Birth Date Analysis */}
-      {person.birthDateAnalysis && (
+      {!person.privacy && person.birthDateAnalysis && (
         <section id="birth-date-analysis" className="mb-8 scroll-mt-8">
           <h2 className="text-xl font-semibold text-stone-800 mb-3">Birth Date Analysis</h2>
           <div className="rounded-lg border border-amber-200 bg-amber-50/30 p-5">
@@ -596,7 +603,7 @@ export default function PersonPage() {
       )}
 
       {/* Sources */}
-      {personSources.length > 0 && (
+      {!person.privacy && personSources.length > 0 && (
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-stone-800 mb-3">Sources</h2>
           <div className="rounded-lg border border-stone-200 bg-white divide-y divide-stone-100">
@@ -614,7 +621,7 @@ export default function PersonPage() {
       )}
 
       {/* Media */}
-      {personMedia.length > 0 && (
+      {!person.privacy && personMedia.length > 0 && (
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-stone-800 mb-3">Media ({personMedia.length})</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">

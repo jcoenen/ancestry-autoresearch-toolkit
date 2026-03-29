@@ -16,6 +16,8 @@ import {
   inferMediaType,
   extractSection,
   extractFullText,
+  applyPrivacyRedaction,
+  redactCrossSpouseMarriageDates,
 } from './lib/build-helpers.js';
 
 // VAULT_ROOT env var points to the vault directory (e.g. Coenen_Genealogy/).
@@ -283,6 +285,13 @@ async function main() {
     const family = fm.family || '';
     if (family) familySet.add(family);
 
+    // Blank marriage dates for private people
+    if (isPrivate) {
+      for (const sp of spouses) {
+        sp.marriageDate = '';
+      }
+    }
+
     const person: PersonData = {
       id: fm.gedcom_id || '',
       name: fm.name || '',
@@ -292,9 +301,9 @@ async function main() {
       family,
       privacy: isPrivate,
       confidence: fm.confidence || 'unknown',
-      sources: fm.sources || [],
+      sources: isPrivate ? [] : (fm.sources || []),
       media: [],  // resolved below from _mediaRefs
-      _mediaRefs: fm.media || [],  // raw YAML paths, resolved after media index is parsed
+      _mediaRefs: isPrivate ? [] : (fm.media || []),  // raw YAML paths, resolved after media index is parsed
       filePath: file,
       slug: slugify(fm.name || ''),
       father: fatherInfo.id,
@@ -308,8 +317,8 @@ async function main() {
       birthplace: isPrivate ? '' : (vitals['Birthplace'] || ''),
       deathPlace: isPrivate ? '' : (vitals['Death Place'] || ''),
       burial: isPrivate ? '' : (vitals['Burial'] || ''),
-      religion: vitals['Religion'] || '',
-      occupation: vitals['Occupation'] || '',
+      religion: isPrivate ? '' : (vitals['Religion'] || ''),
+      occupation: isPrivate ? '' : (vitals['Occupation'] || ''),
       military: isPrivate ? '' : (vitals['Military'] || ''),
       immigration: isPrivate ? '' : (vitals['Immigration'] || ''),
       emigration: isPrivate ? '' : (vitals['Emigration'] || ''),
@@ -318,10 +327,10 @@ async function main() {
       confirmation: isPrivate ? '' : (vitals['Confirmation'] || ''),
       baptized: isPrivate ? '' : (vitals['Baptized'] || ''),
       christened: isPrivate ? '' : (vitals['Christened'] || ''),
-      nickname: vitals['Nickname'] || vitals['Also Known As'] || '',
-      education: vitals['Education'] || '',
-      residence: vitals['Residence'] || '',
-      familySearchId: vitals['FamilySearch ID'] || '',
+      nickname: isPrivate ? '' : (vitals['Nickname'] || vitals['Also Known As'] || ''),
+      education: isPrivate ? '' : (vitals['Education'] || ''),
+      residence: isPrivate ? '' : (vitals['Residence'] || ''),
+      familySearchId: isPrivate ? '' : (vitals['FamilySearch ID'] || ''),
       divorce: isPrivate ? '' : (vitals['Divorce'] || ''),
       cremation: isPrivate ? '' : (vitals['Cremation'] || ''),
     };
@@ -351,6 +360,9 @@ async function main() {
     delete (person as Partial<PersonData>)._mediaRefs;
   }
 
+  // Post-processing: blank marriage dates on non-private people married to private people
+  redactCrossSpouseMarriageDates(people);
+
   // Parse sources from actual source files
   const sources = await parseSourceFiles();
   console.log(`Found ${sources.length} source entries`);
@@ -363,6 +375,27 @@ async function main() {
       .filter((m): m is MediaEntry => m !== undefined);
     delete (source as Partial<SourceEntry>)._mediaRefs;
   }
+
+  // Filter global media to exclude items only associated with private people
+  const publicMediaPaths = new Set<string>();
+  const privateMediaPaths = new Set<string>();
+  for (const person of people) {
+    for (const m of person.media) {
+      if (person.privacy) {
+        privateMediaPaths.add(m.path);
+      } else {
+        publicMediaPaths.add(m.path);
+      }
+    }
+  }
+  for (const source of sources) {
+    for (const m of source.media) {
+      publicMediaPaths.add(m.path);
+    }
+  }
+  const filteredMedia = media.filter(m =>
+    publicMediaPaths.has(m.path) || !privateMediaPaths.has(m.path)
+  );
 
   // Calculate stats
   const publicPeople = people.filter(p => !p.privacy);
@@ -380,7 +413,7 @@ async function main() {
   const stats = {
     totalPeople: people.length,
     totalSources: sources.length,
-    totalMedia: media.length,
+    totalMedia: filteredMedia.length,
     oldestAncestor: oldestWithApprox
       ? `${oldestWithApprox.name} (${oldestWithApprox.born})`
       : 'Unknown',
@@ -421,7 +454,7 @@ async function main() {
     // no translations found, that's fine
   }
 
-  const output = { people, media, sources, stats, report, translations, immigrationStories, config: siteConfig };
+  const output = { people, media: filteredMedia, sources, stats, report, translations, immigrationStories, config: siteConfig };
 
   mkdirSync(dirname(OUTPUT), { recursive: true });
   const tmpFile = join(dirname(OUTPUT), '.site-data.json.tmp');

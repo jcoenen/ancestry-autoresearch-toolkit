@@ -161,7 +161,7 @@ export default function HomePage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-stone-600">{p.privacy ? '' : formatYear(p.born)}</td>
                     <td className="px-4 py-3 text-sm text-stone-600">{p.privacy ? '' : formatYear(p.died)}</td>
-                    <td className="px-4 py-3 text-sm text-stone-500">{p.birthplace}</td>
+                    <td className="px-4 py-3 text-sm text-stone-500">{p.privacy ? '' : p.birthplace}</td>
                   </tr>
                 ))}
               </tbody>

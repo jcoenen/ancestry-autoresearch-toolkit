@@ -293,9 +293,9 @@ function main() {
   // ── Individual records ──────────────────────────────────────
   let mediaCounter = 1;
 
-  for (const p of people) {
-    if (p.privacy) continue;
+  const personById = new Map(people.map(p => [p.id, p]));
 
+  for (const p of people) {
     lines.push(`0 @${p.id}@ INDI`);
 
     // Name
@@ -307,6 +307,22 @@ function main() {
     // Gender
     if (p.gender === 'M' || p.gender === 'F') {
       lines.push(gedLine(1, 'SEX', p.gender));
+    }
+
+    // Private people: emit name + sex + RESN + family links only
+    if (p.privacy) {
+      lines.push(gedLine(1, 'RESN', 'confidential'));
+      for (const [famKey, fam] of familyMap) {
+        if (fam.children.includes(p.id)) {
+          lines.push(gedLine(1, 'FAMC', `@${familyIds.get(famKey)}@`));
+        }
+      }
+      for (const [famKey, fam] of familyMap) {
+        if (fam.husband === p.id || fam.wife === p.id) {
+          lines.push(gedLine(1, 'FAMS', `@${familyIds.get(famKey)}@`));
+        }
+      }
+      continue;
     }
 
     // Birth
@@ -492,8 +508,12 @@ function main() {
       lines.push(gedLine(1, 'WIFE', `@${fam.wife}@`));
     }
 
+    // Suppress marriage/divorce details if either spouse is private
+    const famHasPrivacy = (fam.husband && personById.get(fam.husband)?.privacy) ||
+                          (fam.wife && personById.get(fam.wife)?.privacy);
+
     // Marriage event
-    if (fam.marriageDate) {
+    if (fam.marriageDate && !famHasPrivacy) {
       lines.push(gedLine(1, 'MARR'));
       // Match date portion: ISO (YYYY-MM-DD), "Month DD, YYYY", or "DD Month YYYY"
       const mdMatch = fam.marriageDate.match(/^(\d{4}-\d{2}-\d{2}|[A-Z][a-z]+\s+\d{1,2},?\s*\d{4}|\d{1,2}\s+[A-Z][a-z]+\s+\d{4})(.*)$/);
@@ -506,7 +526,7 @@ function main() {
     }
 
     // Divorce event
-    if (fam.divorce) {
+    if (fam.divorce && !famHasPrivacy) {
       lines.push(gedLine(1, 'DIV'));
       const divDate = toGedcomDate(fam.divorce);
       if (divDate) {
@@ -527,7 +547,7 @@ function main() {
 
   writeFileSync(outputPath, lines.join('\n') + '\n');
 
-  const indiCount = people.filter(p => !p.privacy).length;
+  const indiCount = people.length;
   const mediaCount = mediaCounter - 1;
   console.log(`GEDCOM exported: ${outputPath}`);
   console.log(`  Individuals: ${indiCount}`);

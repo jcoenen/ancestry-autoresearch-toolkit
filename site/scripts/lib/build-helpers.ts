@@ -230,3 +230,70 @@ export function extractFullText(content: string): string {
   }
   return allQuoted.join('\n');
 }
+
+// ── Privacy redaction ──
+
+/** Fields that are always visible for private people (structural/identity) */
+const PRIVACY_VISIBLE_FIELDS = new Set([
+  'id', 'name', 'gender', 'family', 'privacy', 'confidence', 'slug', 'filePath',
+  'father', 'fatherName', 'mother', 'motherName', 'spouses', 'children',
+]);
+
+/** Fields blanked to '' for private people */
+const PRIVACY_STRING_FIELDS = [
+  'born', 'died', 'biography', 'birthDateAnalysis', 'birthplace', 'deathPlace',
+  'burial', 'religion', 'occupation', 'military', 'immigration', 'emigration',
+  'naturalization', 'causeOfDeath', 'confirmation', 'baptized', 'christened',
+  'nickname', 'education', 'residence', 'familySearchId', 'divorce', 'cremation',
+];
+
+interface PersonLike {
+  privacy: boolean;
+  sources: string[];
+  media: unknown[];
+  _mediaRefs?: string[];
+  spouses: { id: string; marriageDate: string; [k: string]: unknown }[];
+  [key: string]: unknown;
+}
+
+/**
+ * Apply privacy redaction to a single person record.
+ * Strips personal details but preserves name, family structure, and tree position.
+ */
+export function applyPrivacyRedaction<T extends PersonLike>(person: T): T {
+  if (!person.privacy) return person;
+
+  for (const field of PRIVACY_STRING_FIELDS) {
+    if (field in person) {
+      (person as Record<string, unknown>)[field] = '';
+    }
+  }
+
+  person.sources = [];
+  person.media = [];
+  if ('_mediaRefs' in person) {
+    person._mediaRefs = [];
+  }
+
+  for (const sp of person.spouses) {
+    sp.marriageDate = '';
+  }
+
+  return person;
+}
+
+/**
+ * Post-processing pass: blank marriage dates on non-private people
+ * whose spouse is private (prevents leaking the private person's marriage date
+ * from the other side of the relationship).
+ */
+export function redactCrossSpouseMarriageDates<T extends PersonLike>(people: T[]): void {
+  const privateIds = new Set(people.filter(p => p.privacy).map(p => (p as Record<string, unknown>).id as string));
+  for (const person of people) {
+    for (const sp of person.spouses) {
+      if (privateIds.has(sp.id)) {
+        sp.marriageDate = '';
+      }
+    }
+  }
+}
