@@ -114,6 +114,7 @@ interface SourceEntry {
   notes: string;
   translationSlug: string;
   ocrVerified: boolean | null;
+  language: string;
   media: MediaEntry[];
   _mediaRefs: string[];
 }
@@ -188,6 +189,7 @@ async function parseSourceFiles(): Promise<SourceEntry[]> {
       notes,
       translationSlug: fm.translation_slug || '',
       ocrVerified: fm.ocr_verified === true ? true : fm.ocr_verified === false ? false : null,
+      language: fm.language || '',
       media: [],
       _mediaRefs: fm.media || [],
     });

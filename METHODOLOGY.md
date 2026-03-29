@@ -59,6 +59,17 @@ tags: [genealogy, source, obituary, Surname1, Surname2]
 ---
 ```
 
+### Optional Frontmatter Fields
+
+```yaml
+language: "German"              # document language if not English
+translation_slug: "obit-smith-1920-english"  # slug of *_ENGLISH.md translation file
+ocr_verified: true              # false until OCR'd text manually reviewed
+memorial_id: "12345"            # FindAGrave memorial number
+```
+
+When `language` is set to a non-English value and no `translation_slug` is provided, the source appears in the "Untranslated Sources" gap on the Research Gaps page. Run `npm run translations` to scan for untranslated sources and create translation stubs.
+
 ### Allowed `source_type` Values
 
 `obituary`, `cemetery_memorial`, `church_record`, `secondary`, `ship_manifest`, `military`, `census`, `family_knowledge`, `certificate`

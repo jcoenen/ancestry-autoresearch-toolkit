@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { usePeople, useData, extractYear, confidenceColor } from '../useData'
+import { generateResearchPlan, SUGGESTIONS } from '../../scripts/lib/research-plan'
 import type { Person, SourceEntry } from '../types'
+import type { GapData } from '../../scripts/lib/research-plan'
 
 /* ── Helpers ──────────────────────────────────────────────────── */
 
@@ -9,6 +11,18 @@ function isMissing(value: string | undefined | null): boolean {
   if (!value) return true
   const v = value.trim()
   return v === '' || v === '—' || v === '-' || v === 'Unknown'
+}
+
+/** Count how many of the 6 key fields a person is missing */
+function countMissingFields(p: Person): number {
+  let missing = 0
+  if (!extractYear(p.born)) missing++
+  if (!extractYear(p.died)) missing++
+  if (isMissing(p.birthplace)) missing++
+  if (!p.biography || p.biography.trim() === '') missing++
+  if (!p.father && !p.fatherName) missing++
+  if (!p.mother && !p.motherName) missing++
+  return missing
 }
 
 /* ── Stat card ────────────────────────────────────────────────── */
@@ -45,10 +59,11 @@ function GapBar({ have, total, label }: { have: number; total: number; label: st
 
 /* ── Collapsible section ──────────────────────────────────────── */
 
-function Section({ title, count, defaultOpen = false, children }: {
+function Section({ title, count, defaultOpen = false, suggestions, children }: {
   title: string
   count: number
   defaultOpen?: boolean
+  suggestions?: string[]
   children: React.ReactNode
 }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -73,6 +88,19 @@ function Section({ title, count, defaultOpen = false, children }: {
       </button>
       {open && (
         <div className="mt-2 rounded-lg border border-stone-200 bg-white p-5 sm:p-6">
+          {suggestions && suggestions.length > 0 && count > 0 && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-100 rounded-lg">
+              <h3 className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-2">Where to look</h3>
+              <ul className="space-y-1">
+                {suggestions.map((s, i) => (
+                  <li key={i} className="text-xs text-amber-700 flex gap-2">
+                    <span className="shrink-0 mt-0.5">&#8227;</span>
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {children}
         </div>
       )}
@@ -101,13 +129,16 @@ function PersonRow({ person, detail }: { person: Person; detail?: string }) {
 
 /* ── Source row ────────────────────────────────────────────────── */
 
-function SourceRow({ source }: { source: SourceEntry }) {
+function SourceRow({ source, detail }: { source: SourceEntry; detail?: string }) {
   return (
     <div className="flex items-center justify-between py-2 border-b border-stone-50 last:border-0">
       <Link to={`/sources/${source.slug}`} className="text-sm font-medium text-amber-700 hover:text-amber-900 truncate">
         {source.title || source.id}
       </Link>
-      <span className="text-xs text-stone-400 shrink-0 ml-2">{source.type?.replace(/_/g, ' ')}</span>
+      <div className="flex items-center gap-2 shrink-0 ml-2">
+        {detail && <span className="text-xs text-stone-400">{detail}</span>}
+        <span className="text-xs text-stone-400">{source.type?.replace(/_/g, ' ')}</span>
+      </div>
     </div>
   )
 }
@@ -117,8 +148,9 @@ function SourceRow({ source }: { source: SourceEntry }) {
 export default function ResearchGapsPage() {
   const people = usePeople()
   const { sources } = useData()
+  const [copied, setCopied] = useState(false)
 
-  const gaps = useMemo(() => {
+  const gaps = useMemo<GapData>(() => {
     const pub = people.filter(p => !p.privacy)
     const total = pub.length
 
@@ -144,6 +176,11 @@ export default function ResearchGapsPage() {
 
     // Unverified OCR
     const unverifiedOcr = sources.filter(s => s.ocrVerified === false)
+
+    // Untranslated non-English sources
+    const untranslated = sources.filter(s =>
+      s.language && s.language.toLowerCase() !== 'english' && s.language.toLowerCase() !== 'en' && !s.translationSlug
+    )
 
     // Completeness score: for each person, count how many of 6 key fields are present
     const fields = ['born', 'died', 'birthplace', 'biography'] as const
@@ -171,14 +208,58 @@ export default function ResearchGapsPage() {
       missingBorn, missingDied, missingBirthplace,
       missingFather, missingMother, missingParents,
       noSources, noMedia, noBio,
-      unverifiedOcr,
+      unverifiedOcr, untranslated,
       completeness,
     }
   }, [people, sources])
 
+  // Per-person prioritized view
+  const prioritized = useMemo(() => {
+    const pub = people.filter(p => !p.privacy)
+    return pub
+      .map(p => ({ person: p, missing: countMissingFields(p) }))
+      .filter(e => e.missing > 0)
+      .sort((a, b) => b.missing - a.missing)
+      .slice(0, 20)
+  }, [people])
+
+  const handleExport = useCallback(() => {
+    const plan = generateResearchPlan(gaps)
+    const blob = new Blob([plan], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `research-plan-${new Date().toISOString().slice(0, 10)}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [gaps])
+
+  const handleCopy = useCallback(async () => {
+    const plan = generateResearchPlan(gaps)
+    await navigator.clipboard.writeText(plan)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }, [gaps])
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-      <h1 className="text-3xl font-bold text-stone-800 mb-2">Research Gaps</h1>
+      <div className="flex items-start justify-between mb-2">
+        <h1 className="text-3xl font-bold text-stone-800">Research Gaps</h1>
+        <div className="flex gap-2 shrink-0 ml-4">
+          <button
+            onClick={handleCopy}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-stone-200 bg-white text-stone-600 hover:bg-stone-50 transition-colors"
+          >
+            {copied ? 'Copied!' : 'Copy Plan'}
+          </button>
+          <button
+            onClick={handleExport}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+          >
+            Export Plan
+          </button>
+        </div>
+      </div>
       <p className="text-stone-500 mb-8">
         What we don't know yet — use this to prioritize your next research session.
       </p>
@@ -202,8 +283,19 @@ export default function ResearchGapsPage() {
         <GapBar have={gaps.total - gaps.noBio.length} total={gaps.total} label="Has biography" />
       </div>
 
+      {/* Priority research targets */}
+      {prioritized.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-5 sm:p-6 mb-8">
+          <h2 className="text-sm font-semibold text-amber-800 uppercase tracking-wide mb-1">Priority Research Targets</h2>
+          <p className="text-xs text-amber-600 mb-4">People with the most missing fields — best bang for your research buck.</p>
+          {prioritized.map(({ person, missing }) => (
+            <PersonRow key={person.id} person={person} detail={`${missing} of 6 fields missing`} />
+          ))}
+        </div>
+      )}
+
       {/* Collapsible detail sections */}
-      <Section title="Stub & Low Confidence" count={gaps.stubAndLow.length} defaultOpen>
+      <Section title="Stub & Low Confidence" count={gaps.stubAndLow.length} defaultOpen suggestions={SUGGESTIONS.stubAndLow}>
         {gaps.stubAndLow.length === 0 ? (
           <p className="text-sm text-stone-500">No stub or low-confidence people. Nice!</p>
         ) : (
@@ -224,7 +316,7 @@ export default function ResearchGapsPage() {
         )}
       </Section>
 
-      <Section title="Missing Birth Dates" count={gaps.missingBorn.length} defaultOpen>
+      <Section title="Missing Birth Dates" count={gaps.missingBorn.length} defaultOpen suggestions={SUGGESTIONS.missingBorn}>
         {gaps.missingBorn.length === 0 ? (
           <p className="text-sm text-stone-500">All people have birth dates.</p>
         ) : (
@@ -232,7 +324,7 @@ export default function ResearchGapsPage() {
         )}
       </Section>
 
-      <Section title="Missing Death Dates" count={gaps.missingDied.length} defaultOpen>
+      <Section title="Missing Death Dates" count={gaps.missingDied.length} defaultOpen suggestions={SUGGESTIONS.missingDied}>
         {gaps.missingDied.length === 0 ? (
           <p className="text-sm text-stone-500">All people have death dates.</p>
         ) : (
@@ -240,7 +332,7 @@ export default function ResearchGapsPage() {
         )}
       </Section>
 
-      <Section title="Missing Parents" count={gaps.missingParents.length}>
+      <Section title="Missing Parents" count={gaps.missingParents.length} suggestions={SUGGESTIONS.missingParents}>
         {gaps.missingParents.length === 0 ? (
           <p className="text-sm text-stone-500">All people have at least one parent recorded.</p>
         ) : (
@@ -253,7 +345,7 @@ export default function ResearchGapsPage() {
         )}
       </Section>
 
-      <Section title="No Sources Cited" count={gaps.noSources.length}>
+      <Section title="No Sources Cited" count={gaps.noSources.length} suggestions={SUGGESTIONS.noSources}>
         {gaps.noSources.length === 0 ? (
           <p className="text-sm text-stone-500">All people have at least one source.</p>
         ) : (
@@ -261,7 +353,7 @@ export default function ResearchGapsPage() {
         )}
       </Section>
 
-      <Section title="No Media" count={gaps.noMedia.length}>
+      <Section title="No Media" count={gaps.noMedia.length} suggestions={SUGGESTIONS.noMedia}>
         {gaps.noMedia.length === 0 ? (
           <p className="text-sm text-stone-500">All people have media attached.</p>
         ) : (
@@ -269,7 +361,23 @@ export default function ResearchGapsPage() {
         )}
       </Section>
 
-      <Section title="Unverified OCR Sources" count={gaps.unverifiedOcr.length}>
+      <Section title="Untranslated Sources" count={gaps.untranslated.length} suggestions={SUGGESTIONS.untranslated}>
+        {gaps.untranslated.length === 0 ? (
+          <p className="text-sm text-stone-500">All non-English sources have translations, or no sources have a language set.</p>
+        ) : (
+          <>
+            <p className="text-xs text-stone-400 mb-3">
+              Sources with a non-English language that don't have an associated translation file.
+              Run <code className="bg-stone-100 px-1 rounded">npm run translations</code> to create stubs.
+            </p>
+            {gaps.untranslated.map(s => (
+              <SourceRow key={s.id} source={s} detail={s.language} />
+            ))}
+          </>
+        )}
+      </Section>
+
+      <Section title="Unverified OCR Sources" count={gaps.unverifiedOcr.length} suggestions={SUGGESTIONS.unverifiedOcr}>
         {gaps.unverifiedOcr.length === 0 ? (
           <p className="text-sm text-stone-500">All OCR sources have been manually verified.</p>
         ) : (
@@ -280,7 +388,7 @@ export default function ResearchGapsPage() {
         )}
       </Section>
 
-      <Section title="Missing Biography" count={gaps.noBio.length}>
+      <Section title="Missing Biography" count={gaps.noBio.length} suggestions={SUGGESTIONS.noBio}>
         {gaps.noBio.length === 0 ? (
           <p className="text-sm text-stone-500">All people have biographies.</p>
         ) : (

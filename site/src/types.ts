@@ -85,6 +85,7 @@ export interface SourceEntry {
   notes: string;
   translationSlug: string;
   ocrVerified: boolean | null;
+  language: string;
   media: MediaEntry[];
 }
 

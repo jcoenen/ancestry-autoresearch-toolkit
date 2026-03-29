@@ -12,6 +12,7 @@
     "import:gedcom": "npx tsx scripts/import-gedcom.ts",
     "init": "npx tsx scripts/init-project.ts",
     "upload:media": "npx tsx scripts/upload-media.ts",
+    "translations": "npx tsx scripts/manage-translations.ts",
     "deploy": "npm run build:data && npm run upload:media && npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
