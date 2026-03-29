@@ -2,6 +2,22 @@
 
 ## What Was Done
 
+### Session 6: Global Full-Text Search (#13)
+
+Added global fuzzy search across all people and sources using fuse.js.
+
+#### Implementation
+
+- **`useSearch.ts`** — Builds a Fuse.js index over 10 fields: name, family, birthplace, occupation, biography (people); full text, extracted facts, notes, record, publisher (sources). Privacy-aware — private people's sensitive fields excluded from the index. Returns grouped, scored results with match metadata for snippet highlighting.
+- **`SearchBar.tsx`** — Compact search input in the nav bar. Cmd+K / Ctrl+K keyboard shortcut to focus. Navigates to `/search?q=...` on Enter. URL-synced when on the search page.
+- **`SearchPage.tsx`** — Results page with people and sources in separate sections. Each result card shows type badge (Person/Source), title, subtitle, and a highlighted snippet from the matched field.
+- **`Nav.tsx`** — SearchBar added to desktop nav (between links and Explore dropdown) and mobile menu (top of dropdown).
+- **`App.tsx`** — Added `/search` route.
+
+#### Backlog
+
+- Dropped #11 (incremental builds) — complexity not worth the small time savings on typical vault sizes.
+
 ### Session 5: Complete Privacy Redaction (#5)
 
 Implemented full privacy redaction so `privacy: true` people have their personal details stripped from `site-data.json` at build time, while preserving their name and family structure in the tree.
@@ -113,17 +129,19 @@ Promoted 6 supplemental vital fields to parsed + added 2 new ones:
 
 ## Commits
 
+- `88e6d89` — Add global full-text search across people and sources
 - `7c08029` — Complete privacy redaction for private people across build pipeline, GEDCOM export, and UI
 - `69cfd67` — Add GEDCOM import and fix date parsing consistency across all parsers
 - `918169c` — Add error boundaries, GEDCOM export, gender field, expanded On This Day, atomic writes, and orphaned source enforcement
 
 ## Improvements Backlog Status
 
-**Done:** #1, #2, #3, #4, #5, #6 (export + import), #7, #8, #10, #14
-**Remaining:** #9 (media upload pipeline), #11 (incremental builds), #12 (actionable research gaps), #13 (full-text search), #15 (translation workflow), #16 (cross-vault linking), #17 (onboarding/init)
+**Done:** #1, #2, #3, #4, #5, #6 (export + import), #7, #8, #10, #13, #14
+**Dropped:** #11 (incremental builds — not worth the complexity)
+**Remaining:** #9 (media upload pipeline), #12 (actionable research gaps), #15 (translation workflow), #16 (cross-vault linking), #17 (onboarding/init)
 
 ## State
 
-- All 177 tests passing
+- 177 tests passing
 - TypeScript type-checks clean
 - Pushed to `master`
