@@ -2,6 +2,45 @@
 
 ## What Was Done
 
+### Session 7: Interactive Project Initialization (#17)
+
+Added an interactive init wizard that scaffolds a complete family project in one guided flow.
+
+#### Implementation
+
+- **`site/scripts/init-project.ts`** — Interactive CLI wizard using `@inquirer/prompts`. Three-phase flow:
+  1. **Project basics** — family surname, researcher name, countries of origin, research goals
+  2. **Family tree walkthrough** — root person → parents → grandparents (up to 7 people). Per person: full name (required), maiden name for women (right after name), birth year, birth place, death year, death place (all optional). Spouses prompted at each level. Auto-assigns GEDCOM IDs and wikilinks.
+  3. **Finalization** — auto-collected surnames with option to add more, optional GEDCOM file import
+
+  Creates: vault directory structure, person `.md` files with cross-linked relationships, `site-config.json`, 5 vault-level docs (Family_Tree, Open_Questions, Research_Log, Research_Strategy, Summary_Report), `_Media_Index.md`, root `package.json` wrapper, `.gitignore`, `CLAUDE.md`.
+
+- **Maiden name support** — women are filed under birth surname (`family:` field, `people/{BirthSurname}/` path). Wikilinks use maiden name. Surnames auto-collected from all entered people including maiden names.
+
+- **Auto-generated content:**
+  - `Open_Questions.md` — gap detection for every missing birth year/place/death year across all entered people
+  - `Family_Tree.md` — text pedigree chart from entered ancestors
+  - `Research_Strategy.md` — populated with surname lines, countries, goals
+  - `Research_Log.md` — first entry with setup summary
+
+- **`templates/vault-docs/`** — 5 standalone blank templates for vault-level docs (reusable outside the wizard)
+
+- **Idempotency** — pre-flight checks verify toolkit exists and vault doesn't already exist
+- **GEDCOM import** — optional step invokes existing `import-gedcom.ts` on user's `.ged` file
+- **Post-scaffold** — auto-runs `npm install`, prints next steps
+
+#### Files Created
+- `site/scripts/init-project.ts`
+- `templates/vault-docs/Family_Tree.md`
+- `templates/vault-docs/Open_Questions.md`
+- `templates/vault-docs/Research_Log.md`
+- `templates/vault-docs/Research_Strategy.md`
+- `templates/vault-docs/Summary_Report.md`
+
+#### Files Modified
+- `site/package.json` — added `@inquirer/prompts` dep + `init` script
+- `README.md` — Quick Start leads with wizard, manual steps in collapsible section
+
 ### Session 6: Global Full-Text Search (#13)
 
 Added global fuzzy search across all people and sources using fuse.js.
@@ -115,20 +154,9 @@ Promoted 6 supplemental vital fields to parsed + added 2 new ones:
 | Divorce | `divorce` | `DIV` (on FAM record) |
 | Cremation | `cremation` | `CREM` |
 
-## Files Modified/Created (Session 5)
-
-**New files:**
-- `site/scripts/__tests__/privacy-redaction.test.ts` — 9 tests for privacy redaction helpers
-
-**Modified files:**
-- `site/scripts/build-data.ts` — Complete build-time privacy redaction + media filtering
-- `site/scripts/export-gedcom.ts` — Minimal INDI for private people, FAM privacy suppression
-- `site/scripts/lib/build-helpers.ts` — `applyPrivacyRedaction()` and `redactCrossSpouseMarriageDates()`
-- `site/src/pages/PersonPage.tsx` — Privacy notice banner + section guards
-- `site/src/pages/HomePage.tsx` — Birthplace privacy guard
-
 ## Commits
 
+- `577371f` — Add interactive project initialization wizard
 - `88e6d89` — Add global full-text search across people and sources
 - `7c08029` — Complete privacy redaction for private people across build pipeline, GEDCOM export, and UI
 - `69cfd67` — Add GEDCOM import and fix date parsing consistency across all parsers
@@ -136,9 +164,9 @@ Promoted 6 supplemental vital fields to parsed + added 2 new ones:
 
 ## Improvements Backlog Status
 
-**Done:** #1, #2, #3, #4, #5, #6 (export + import), #7, #8, #10, #13, #14
+**Done:** #1, #2, #3, #4, #5, #6 (export + import), #7, #8, #10, #13, #14, #17
 **Dropped:** #11 (incremental builds — not worth the complexity)
-**Remaining:** #9 (media upload pipeline), #12 (actionable research gaps), #15 (translation workflow), #16 (cross-vault linking), #17 (onboarding/init)
+**Remaining:** #9 (media upload pipeline), #12 (actionable research gaps), #15 (translation workflow), #16 (cross-vault linking)
 
 ## State
 
