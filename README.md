@@ -22,7 +22,7 @@ One toolkit, multiple family projects. Each family gets its own repo with this t
 - **Source browser** — searchable/filterable table of all sources with full text and extracted facts
 - **Media gallery** — gravestones, portraits, newspaper clippings, documents
 - **Timeline** — chronological events across all people
-- **On This Day** — daily family history highlights on the homepage
+- **On This Day** — daily family history highlights (births, deaths, marriages, immigration, military, baptisms, and more)
 - **Statistics** — people count, source count, generations traced, family lines
 - **Research gaps** — auto-detected stubs, missing sources, broken links
 - **Immigration stories** — narrative page rendered from vault markdown
@@ -40,7 +40,7 @@ The validation script (`npm run validate`) enforces:
 - Source ID format (`SRC-TYPE-NNN`) and uniqueness
 - Confidence levels (`high`, `moderate`, `low`, `stub`) with defined criteria
 - Bidirectional relationship integrity (parent lists child ↔ child lists parent)
-- Orphaned source detection (every source must be referenced by at least one person)
+- Orphaned source detection (every source must be referenced by at least one person — treated as errors)
 - Broken wikilink detection
 - Vital Information field name validation (non-standard names break the site build)
 - Media index completeness (all 5 columns required)
@@ -52,7 +52,7 @@ The validation script (`npm run validate`) enforces:
 
 Ready-to-use markdown templates for:
 
-- **Person files** — vitals table, biography, source citations, data discrepancies
+- **Person files** — vitals table (25+ recognized fields including gender, baptism, education, residence, military, immigration, divorce), biography, source citations, data discrepancies
 - **Source files** — certificate, transcription (with OCR quality tracking)
 - **Surname files** — etymology, distribution, family line history
 - **Research files** — hypothesis tracking, region deep-dives
@@ -223,7 +223,8 @@ The included `upload-media.sh` script handles R2 uploads if you configure the `m
 - **Markdown rendering**: react-markdown + remark-gfm
 - **Build scripts**: tsx (TypeScript execution)
 - **Validation**: Custom TypeScript validator
-- **Testing**: Vitest (102 unit tests for build/validation parsing logic)
+- **GEDCOM export**: Full GEDCOM 5.5.1 export (`npm run export:gedcom`)
+- **Testing**: Vitest (104 unit tests for build/validation parsing logic)
 - **Media CDN**: Cloudflare R2 (optional)
 
 ## License
