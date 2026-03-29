@@ -44,23 +44,25 @@ export const RECOGNIZED_VITAL_FIELDS = [
   'Naturalization',
   'Cause of Death',
   'Confirmation',
+  'Baptized',
+  'Christened',
+  'Nickname',
+  'Also Known As',
+  'Education',
+  'Residence',
+  'FamilySearch ID',
+  'Divorce',
+  'Cremation',
   'Married',
   'Marriage',
   // Supplemental fields — not parsed by build script but acceptable in the table
-  'Also Known As',
-  'Baptized',
-  'Christened',
   'Companion',
-  'Education',
-  'FamilySearch ID',
   'Grandchildren',
   'Great-grandchildren',
   'Known Children',
   'Maternal Grandmother',
   'Maternal Grandparents',
-  'Nickname',
   'Parents Married',
-  'Residence',
   'Sibling',
   'Special Friend',
   'Twin',
@@ -214,7 +216,7 @@ export function crossReferenceCheck(
 
   if (orphaned.length > 0) {
     for (const o of orphaned) {
-      result.warnings.push(`Orphaned source: ${o} — not referenced by any person file`);
+      result.errors.push(`Orphaned source: ${o} — not referenced by any person file`);
     }
   }
 

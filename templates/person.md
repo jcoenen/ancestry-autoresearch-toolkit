@@ -4,6 +4,7 @@ name: "[Full Name]"
 born: YYYY-MM-DD
 died: YYYY-MM-DD
 family: "[Birth Surname]"
+gender: M | F
 gedcom_id: "[I##]"
 privacy: false
 confidence: high | moderate | low | stub
@@ -31,8 +32,22 @@ tags: [genealogy, surname, person]
 | Mother | [[people/Surname/Surname_Given.md]] | [SRC-ID] |
 | Spouse | [[people/Surname/Surname_Given.md]] (m. [date], [place]) | [SRC-ID] |
 | Children | [[Child_1]], [[Child_2]] | [SRC-ID] |
+| Baptized | [date, place] | [SRC-ID] |
+| Christened | [date, place] | [SRC-ID] |
+| Confirmation | [date, place] | [SRC-ID] |
 | Religion | [denomination] | [SRC-ID] |
 | Occupation | [occupation] | [SRC-ID] |
+| Education | [school/degree] | [SRC-ID] |
+| Nickname | [name] | [SRC-ID] |
+| Residence | [address/city] | [SRC-ID] |
+| Military | [service details] | [SRC-ID] |
+| Immigration | [date, port/place] | [SRC-ID] |
+| Emigration | [date, from] | [SRC-ID] |
+| Naturalization | [date, place] | [SRC-ID] |
+| Divorce | [date, place] | [SRC-ID] |
+| Cause of Death | [cause] | [SRC-ID] |
+| Cremation | [date/place] | [SRC-ID] |
+| FamilySearch ID | [XXXX-XXX] | |
 
 ## Biography
 

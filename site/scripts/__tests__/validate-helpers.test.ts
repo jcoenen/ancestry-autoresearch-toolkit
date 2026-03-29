@@ -372,7 +372,7 @@ describe('crossReferenceCheck', () => {
     expect(result.warnings).toHaveLength(0);
   });
 
-  it('warns about orphaned sources', () => {
+  it('errors on orphaned sources', () => {
     const sourceIds = new Map([
       ['SRC-OBIT-001', 'sources/obit_john.md'],
       ['SRC-CEM-001', 'sources/cem_john.md'],
@@ -380,14 +380,14 @@ describe('crossReferenceCheck', () => {
     const personSourceRefs = new Set(['SRC-OBIT-001']);  // CEM-001 not referenced
 
     const result = crossReferenceCheck(sourceIds, personSourceRefs);
-    expect(result.warnings).toHaveLength(1);
-    expect(result.warnings[0]).toContain('SRC-CEM-001');
-    expect(result.warnings[0]).toContain('Orphaned source');
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain('SRC-CEM-001');
+    expect(result.errors[0]).toContain('Orphaned source');
   });
 
   it('handles empty inputs', () => {
     const result = crossReferenceCheck(new Map(), new Set());
-    expect(result.warnings).toHaveLength(0);
+    expect(result.errors).toHaveLength(0);
   });
 });
 

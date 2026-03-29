@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
-import { resolve, relative, dirname } from 'path';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync } from 'fs';
+import { resolve, relative, dirname, join } from 'path';
 import { glob } from 'glob';
 import matter from 'gray-matter';
 import {
@@ -43,6 +43,7 @@ if (existsSync(CONFIG_FILE)) {
 interface PersonData {
   id: string;
   name: string;
+  gender: string;
   born: string;
   died: string;
   family: string;
@@ -71,6 +72,14 @@ interface PersonData {
   naturalization: string;
   causeOfDeath: string;
   confirmation: string;
+  baptized: string;
+  christened: string;
+  nickname: string;
+  education: string;
+  residence: string;
+  familySearchId: string;
+  divorce: string;
+  cremation: string;
   _mediaRefs: string[];
 }
 
@@ -277,6 +286,7 @@ async function main() {
     const person: PersonData = {
       id: fm.gedcom_id || '',
       name: fm.name || '',
+      gender: fm.gender || '',
       born: isPrivate ? '' : formatDate(fm.born),
       died: isPrivate ? '' : formatDate(fm.died),
       family,
@@ -306,6 +316,14 @@ async function main() {
       naturalization: isPrivate ? '' : (vitals['Naturalization'] || ''),
       causeOfDeath: isPrivate ? '' : (vitals['Cause of Death'] || ''),
       confirmation: isPrivate ? '' : (vitals['Confirmation'] || ''),
+      baptized: isPrivate ? '' : (vitals['Baptized'] || ''),
+      christened: isPrivate ? '' : (vitals['Christened'] || ''),
+      nickname: vitals['Nickname'] || vitals['Also Known As'] || '',
+      education: vitals['Education'] || '',
+      residence: vitals['Residence'] || '',
+      familySearchId: vitals['FamilySearch ID'] || '',
+      divorce: isPrivate ? '' : (vitals['Divorce'] || ''),
+      cremation: isPrivate ? '' : (vitals['Cremation'] || ''),
     };
 
     people.push(person);
@@ -406,7 +424,9 @@ async function main() {
   const output = { people, media, sources, stats, report, translations, immigrationStories, config: siteConfig };
 
   mkdirSync(dirname(OUTPUT), { recursive: true });
-  writeFileSync(OUTPUT, JSON.stringify(output, null, 2));
+  const tmpFile = join(dirname(OUTPUT), '.site-data.json.tmp');
+  writeFileSync(tmpFile, JSON.stringify(output, null, 2));
+  renameSync(tmpFile, OUTPUT);
 
   console.log(`\nOutput: ${relative(process.cwd(), OUTPUT)}`);
   console.log(`People: ${stats.totalPeople}`);

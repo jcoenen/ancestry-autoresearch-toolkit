@@ -17,6 +17,7 @@ export interface SpouseRef {
 export interface Person {
   id: string;
   name: string;
+  gender: string;
   born: string;
   died: string;
   family: string;
@@ -45,6 +46,14 @@ export interface Person {
   naturalization: string;
   causeOfDeath: string;
   confirmation: string;
+  baptized: string;
+  christened: string;
+  nickname: string;
+  education: string;
+  residence: string;
+  familySearchId: string;
+  divorce: string;
+  cremation: string;
 }
 
 export interface MediaEntry {

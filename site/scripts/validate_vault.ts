@@ -617,16 +617,16 @@ async function main() {
 
   // ── Cross-references ──
   const xrefResult = crossReferenceCheck(sourceIds, personSourceRefs);
-  const xrefWarnings = xrefResult.warnings.length;
-  totalWarnings += xrefWarnings;
+  const xrefErrors = xrefResult.errors.length;
+  totalErrors += xrefErrors;
 
   console.log(`\nCross-references:`);
-  if (xrefWarnings === 0) {
+  if (xrefErrors === 0) {
     console.log(`  \u2713 All sources referenced by at least one person file`);
   } else {
-    console.log(`  ! ${xrefWarnings} orphaned sources:`);
-    for (const w of xrefResult.warnings) {
-      console.log(`    ${w}`);
+    console.log(`  \u2717 ${xrefErrors} orphaned sources:`);
+    for (const e of xrefResult.errors) {
+      console.log(`    ${e}`);
     }
   }
 

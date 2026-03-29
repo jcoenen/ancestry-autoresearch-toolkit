@@ -7,10 +7,18 @@ import {
   extractEvents,
 } from '../onThisDayEvents'
 
-const EVENT_ICONS = {
+const EVENT_ICONS: Record<string, string> = {
   birth: '🎂',
   death: '🕊️',
   marriage: '💒',
+  immigration: '🚢',
+  emigration: '🌍',
+  naturalization: '📜',
+  military: '🎖️',
+  baptism: '💧',
+  christening: '⛪',
+  confirmation: '✝️',
+  divorce: '📋',
 }
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']

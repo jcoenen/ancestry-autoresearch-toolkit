@@ -42,9 +42,14 @@ interface CoupleCardData {
 
 export function buildGenderMap(people: Person[]): Map<string, 'M' | 'F'> {
   const map = new Map<string, 'M' | 'F'>()
+  // First pass: infer from parent roles (fallback)
   for (const p of people) {
     if (p.father) map.set(p.father, 'M')
     if (p.mother) map.set(p.mother, 'F')
+  }
+  // Second pass: explicit gender field takes priority
+  for (const p of people) {
+    if (p.gender === 'M' || p.gender === 'F') map.set(p.id, p.gender)
   }
   return map
 }
