@@ -25,7 +25,7 @@ One toolkit, multiple family projects. Each family gets its own repo with this t
 - **On This Day** — daily family history highlights (births, deaths, marriages, immigration, military, baptisms, and more)
 - **Statistics** — people count, source count, generations traced, family lines
 - **Global search** — fuzzy full-text search across people and sources (name, biography, birthplace, occupation, source text, notes) with highlighted snippets. Cmd+K shortcut
-- **Research gaps** — auto-detected stubs, missing sources, broken links
+- **Research gaps** — auto-detected stubs, missing sources, broken links, untranslated sources. Per-category research suggestions ("Where to look"). Priority targets ranked by gap count. Export/Copy research plan as markdown checklist
 - **Immigration stories** — narrative page rendered from vault markdown
 - **Family filter** — dropdown to filter any view by surname
 - **Privacy controls** — `privacy: true` people keep their name and family position in the tree but all personal details (dates, places, vitals, biography, sources, media) are stripped from the published site at build time. GEDCOM export emits minimal records with `RESN confidential`
@@ -263,7 +263,8 @@ VITE_MEDIA_BASE_URL="https://your-r2-bucket.r2.dev/" npm run build
 - **GEDCOM export**: Full GEDCOM 5.5.1 export (`npm run export:gedcom`)
 - **GEDCOM import**: Import GEDCOM 5.5.1 files as person markdown (`npm run import:gedcom <file.ged>`)
 - **Search**: fuse.js (client-side fuzzy search)
-- **Testing**: Vitest (177 unit tests for build/validation/import parsing logic)
+- **Translation management**: `npm run translations` — scans for untranslated non-English sources, creates translation stubs
+- **Testing**: Vitest (194 unit tests for build/validation/import/translation/research-plan logic)
 - **Media CDN**: Cloudflare R2 (optional)
 
 ## License

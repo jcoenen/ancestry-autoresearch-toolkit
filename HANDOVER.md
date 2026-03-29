@@ -2,6 +2,52 @@
 
 ## What Was Done
 
+### Session 9: Actionable Research Gaps (#12) + Translation Workflow (#15)
+
+Two improvements completed: made the Research Gaps page actionable with export capabilities, and built a complete translation management workflow.
+
+#### Research Gaps Enhancements (#12)
+
+**ResearchGapsPage** (`site/src/pages/ResearchGapsPage.tsx`) now includes:
+
+- **"Where to look" suggestions** — each gap section has an amber callout with 3-4 specific research tips (e.g., "Check birth certificates in the person's birthplace civil registry", "Search FindAGrave.com for cemetery records")
+- **Priority Research Targets** — new section showing top 20 people sorted by most missing fields (out of 6 key fields: born, died, birthplace, biography, father, mother)
+- **Export Plan button** — downloads `research-plan-YYYY-MM-DD.md` with:
+  - Per-person checkbox task lists sorted by gap count (most gaps first)
+  - Unverified OCR and untranslated source task lists
+  - Research tips by gap type
+- **Copy Plan button** — same markdown content to clipboard
+- **Untranslated Sources section** — new gap category showing non-English sources without translation files
+
+**Pure library** (`site/scripts/lib/research-plan.ts`) — `generateResearchPlan()` and `SUGGESTIONS` extracted to a testable module (no React/filesystem deps).
+
+#### Translation Workflow (#15)
+
+**New `language` field** on source files:
+- Added to `SourceEntry` interface in `types.ts` and `build-data.ts`
+- Sources with `language: "German"` (or any non-English value) and no `translation_slug` appear as untranslated gaps
+- Documented in METHODOLOGY.md under new "Optional Frontmatter Fields" section
+
+**New `manage-translations.ts` script** (`site/scripts/manage-translations.ts`):
+- `npm run translations` — reports translation coverage grouped by language
+- `npm run translations --create` — creates translation stub files in `media/documents/`
+- `npm run translations --create --link` — also updates source YAML frontmatter with `translation_slug`
+- `npm run translations --dry-run` — preview mode
+- Stubs include: header, source reference, language, translation placeholder, notes section
+
+#### Files Created
+- `site/scripts/lib/research-plan.ts` — pure research plan generation
+- `site/scripts/manage-translations.ts` — translation management CLI
+- `site/scripts/__tests__/research-plan.test.ts` — 7 tests for plan generation
+- `site/scripts/__tests__/manage-translations.test.ts` — 4 tests for translation helpers
+
+#### Files Modified
+- `site/src/pages/ResearchGapsPage.tsx` — suggestions, priority targets, export/copy, untranslated section
+- `site/src/types.ts` — added `language` to `SourceEntry`
+- `site/scripts/build-data.ts` — added `language` field to source parsing
+- `site/package.json` — added `translations` script
+- `METHODOLOGY.md` — documented optional frontmatter fields (language, translation_slug, ocr_verified, memorial_id)
+
 ### Session 8: Smart Media Uploader (#9)
 
 Replaced the dumb `upload-media.sh` (re-uploaded every file every time) with a smart TypeScript uploader that tracks file hashes.
@@ -182,6 +228,7 @@ Promoted 6 supplemental vital fields to parsed + added 2 new ones:
 
 ## Commits
 
+- `1cc7890` — Add actionable research gaps and translation management workflow
 - `55fc9ad` — Add smart media uploader with SHA-256 diffing
 - `577371f` — Add interactive project initialization wizard
 - `88e6d89` — Add global full-text search across people and sources
@@ -191,12 +238,12 @@ Promoted 6 supplemental vital fields to parsed + added 2 new ones:
 
 ## Improvements Backlog Status
 
-**Done:** #1, #2, #3, #4, #5, #6 (export + import), #7, #8, #9, #10, #13, #14, #17
+**Done:** #1, #2, #3, #4, #5, #6 (export + import), #7, #8, #9, #10, #12, #13, #14, #15, #17
 **Dropped:** #11 (incremental builds — not worth the complexity)
-**Remaining:** #12 (actionable research gaps), #15 (translation workflow), #16 (cross-vault linking)
+**Remaining:** #16 (cross-vault linking)
 
 ## State
 
-- 177 tests passing
+- 194 tests passing
 - TypeScript type-checks clean
 - Pushed to `master`
