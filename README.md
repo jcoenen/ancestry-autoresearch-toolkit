@@ -224,7 +224,8 @@ The included `upload-media.sh` script handles R2 uploads if you configure the `m
 - **Build scripts**: tsx (TypeScript execution)
 - **Validation**: Custom TypeScript validator
 - **GEDCOM export**: Full GEDCOM 5.5.1 export (`npm run export:gedcom`)
-- **Testing**: Vitest (104 unit tests for build/validation parsing logic)
+- **GEDCOM import**: Import GEDCOM 5.5.1 files as person markdown (`npm run import:gedcom <file.ged>`)
+- **Testing**: Vitest (168 unit tests for build/validation/import parsing logic)
 - **Media CDN**: Cloudflare R2 (optional)
 
 ## License

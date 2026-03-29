@@ -2,6 +2,35 @@
 
 ## What Was Done
 
+### Session 4: GEDCOM Import (#6) + Date Parsing Fix (#14)
+
+#### GEDCOM Import
+
+Created `site/scripts/import-gedcom.ts` — a full GEDCOM 5.5.1 parser that generates person markdown files matching the vault template format.
+
+**Features:**
+- Parses INDI, FAM records with full field coverage
+- Generates frontmatter (name, born, died, family, gender, gedcom_id, confidence: stub)
+- Builds vital info tables with wikilinked parents, spouses (with marriage dates/places), children
+- Handles all 20+ vital fields: burial, cremation, baptism, christening, immigration, emigration, naturalization, military, occupation, education, religion, residence, nickname, FamilySearch ID, cause of death, divorce
+- Reassembles CONT/CONC biography text from NOTE records
+- Multiple spouses with ordinal labels (1st, 2nd, etc.) and per-marriage children groups
+- Skips existing files (safe to re-run)
+- `--dry-run` flag to preview without writing
+- `--out-dir` flag to override output directory
+- Run: `npm run import:gedcom <file.ged>`
+
+#### Date Parsing Consistency (#14)
+
+All date parsers now support 3 formats consistently: ISO (`YYYY-MM-DD`), `"Month DD, YYYY"`, `"DD Month YYYY"`.
+
+| Function | Before | After |
+|---|---|---|
+| `parseFullDate()` | ISO only | All 3 formats |
+| `parseMarriageDate()` | "Month DD, YYYY" only | All 3 formats + location extraction |
+| `toGedcomDate()` | ISO + "Month DD, YYYY" | All 3 formats |
+| Marriage date regex in FAM export | "Month DD, YYYY" only | All 3 formats |
+
 ### Session 3: Batch Improvements (#3, #4, #6, #7, #8, #10) + GEDCOM Field Expansion
 
 Completed 6 items from the improvements backlog, then expanded GEDCOM coverage with 8 additional fields.
@@ -32,38 +61,30 @@ Promoted 6 supplemental vital fields to parsed + added 2 new ones:
 | Divorce | `divorce` | `DIV` (on FAM record) |
 | Cremation | `cremation` | `CREM` |
 
-GEDCOM export also includes: `causeOfDeath` (CAUS), `confirmation` (CONF), source records (SOUR with TITL/PUBL/DATE/QUAY), media objects (OBJE with FORM/FILE/TITL), biography (NOTE with CONT/CONC line splitting).
-
-### Files Modified/Created
+### Files Modified/Created (Session 4)
 
 **New files:**
-- `site/scripts/export-gedcom.ts` — GEDCOM 5.5.1 export script
-- `site/src/components/ErrorBoundary.tsx` — React error boundary component
+- `site/scripts/import-gedcom.ts` — GEDCOM 5.5.1 import script
+- `site/scripts/__tests__/import-gedcom.test.ts` — 39 tests for import functions
+- `site/scripts/__tests__/date-parsing.test.ts` — 25 tests for date parsing
 
-**Modified files (11):**
-- `site/package.json` — Added `export:gedcom` script
-- `site/scripts/build-data.ts` — Gender + 8 new fields parsing, atomic writes
-- `site/scripts/lib/validate-helpers.ts` — Promoted supplemental fields to core, added Divorce/Cremation, orphaned sources → errors
-- `site/scripts/validate_vault.ts` — Cross-reference section uses errors
-- `site/scripts/__tests__/validate-helpers.test.ts` — Updated orphaned source test
-- `site/src/types.ts` — 9 new fields on Person (gender + 8 vital)
-- `site/src/App.tsx` — ErrorBoundary wrapping
-- `site/src/onThisDayEvents.ts` — 11 event types, parseDateFromText, full month names
-- `site/src/pages/OnThisDayPage.tsx` — Icons for all event types
-- `site/src/pages/TreeView.tsx` — buildGenderMap prefers explicit gender
-- `templates/person.md` — Gender in frontmatter, all vital fields in table
+**Modified files:**
+- `site/package.json` — Added `import:gedcom` script
+- `site/scripts/export-gedcom.ts` — Added "DD Month YYYY" to `toGedcomDate()`, fixed marriage date regex
+- `site/src/onThisDayEvents.ts` — Updated `parseFullDate()` and `parseMarriageDate()` to support all 3 date formats
 
 ## Commits
 
+- `69cfd67` — Add GEDCOM import and fix date parsing consistency across all parsers
 - `918169c` — Add error boundaries, GEDCOM export, gender field, expanded On This Day, atomic writes, and orphaned source enforcement
 
 ## Improvements Backlog Status
 
-**Done:** #1, #2, #3, #4, #6 (export only), #7, #8, #10
-**Remaining:** #5 (privacy redaction), #6 (GEDCOM import), #9 (media upload pipeline), #11-17
+**Done:** #1, #2, #3, #4, #6 (export + import), #7, #8, #10, #14
+**Remaining:** #5 (privacy redaction), #9 (media upload pipeline), #11-13, #15-17
 
 ## State
 
-- All 104 tests passing
+- All 168 tests passing
 - TypeScript type-checks clean
 - Pushed to `master`
