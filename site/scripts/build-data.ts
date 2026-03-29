@@ -2,6 +2,21 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { resolve, relative, dirname } from 'path';
 import { glob } from 'glob';
 import matter from 'gray-matter';
+import {
+  formatDate,
+  slugify,
+  extractIdFromParens,
+  extractWikilink,
+  extractNameFromWikilink,
+  parseVitalTable,
+  extractBiography,
+  parseChildren,
+  parseSpouse,
+  parseParent,
+  inferMediaType,
+  extractSection,
+  extractFullText,
+} from './lib/build-helpers.js';
 
 // VAULT_ROOT env var points to the vault directory (e.g. Coenen_Genealogy/).
 // Falls back to ../../ for backward compatibility when site/ is inside the vault.
@@ -50,6 +65,7 @@ interface PersonData {
   burial: string;
   religion: string;
   occupation: string;
+  _mediaRefs: string[];
 }
 
 interface MediaEntry {
@@ -80,222 +96,12 @@ interface SourceEntry {
   extractedFacts: string;
   notes: string;
   translationSlug: string;
+  ocrVerified: boolean | null;
+  media: MediaEntry[];
+  _mediaRefs: string[];
 }
 
 const SOURCES_DIR = resolve(ROOT, 'sources');
-
-function formatDate(val: unknown): string {
-  if (!val) return '';
-  if (val instanceof Date) {
-    // gray-matter parses YAML dates as UTC midnight, use toISOString to get YYYY-MM-DD
-    return val.toISOString().split('T')[0];
-  }
-  return String(val);
-}
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-}
-
-function extractIdFromParens(text: string): string {
-  const match = text.match(/\(I(\d+)[),]/);
-  if (match) return `I${match[1]}`;
-  const match2 = text.match(/\(I(\d+)\)/);
-  return match2 ? `I${match2[1]}` : '';
-}
-
-function extractWikilink(text: string): string {
-  const match = text.match(/\[\[([^\]]+)\]\]/);
-  return match ? match[1] : '';
-}
-
-function extractNameFromWikilink(wikilink: string): string {
-  // Filename format: Surname_First_Middle.md -> extract and reorder
-  const filename = wikilink.split('/').pop() || '';
-  const base = filename.replace(/\.md$/, '');
-  const parts = base.split('_');
-  if (parts.length >= 2) {
-    // First part is surname, rest are given names: "Coenen_Roger_Francis" -> "Roger Francis Coenen"
-    const surname = parts[0];
-    const given = parts.slice(1).join(' ');
-    return `${given} ${surname}`;
-  }
-  return base.replace(/_/g, ' ');
-}
-
-function extractNameFromText(text: string): string {
-  // Remove wikilinks, IDs in parens, marriage info
-  let name = text
-    .replace(/\[\[[^\]]+\]\]/g, '')
-    .replace(/\(I\d+\)/g, '')
-    .replace(/,\s*m\.\s*.*/g, '')
-    .trim();
-  // If there's still text, return it
-  return name || '';
-}
-
-function parseVitalTable(content: string): Record<string, string> {
-  const table: Record<string, string> = {};
-  const lines = content.split('\n');
-  let inVitalSection = false;
-
-  for (const line of lines) {
-    if (line.includes('## Vital Information')) {
-      inVitalSection = true;
-      continue;
-    }
-    if (inVitalSection && line.startsWith('## ') && !line.includes('Vital')) {
-      break;
-    }
-    if (inVitalSection && line.startsWith('|') && !line.startsWith('|---') && !line.startsWith('| Field')) {
-      const parts = line.split('|').map(p => p.trim()).filter(Boolean);
-      if (parts.length >= 2) {
-        table[parts[0]] = parts[1];
-      }
-    }
-  }
-
-  return table;
-}
-
-function extractBiography(content: string): string {
-  const lines = content.split('\n');
-  let inBio = false;
-  const bioLines: string[] = [];
-
-  for (const line of lines) {
-    if (line.includes('## Biography')) {
-      inBio = true;
-      continue;
-    }
-    if (inBio && line.startsWith('## ')) {
-      break;
-    }
-    if (inBio && line.trim()) {
-      bioLines.push(line.trim());
-    }
-  }
-
-  return bioLines.join('\n\n');
-}
-
-function parseChildren(childrenStr: string): { name: string; id: string; link: string }[] {
-  if (!childrenStr || childrenStr === '—' || childrenStr.toLowerCase() === 'unknown') return [];
-
-  const children: { name: string; id: string; link: string }[] = [];
-  // Split by comma, but be careful about commas inside wikilinks
-  const segments: string[] = [];
-  let current = '';
-  let depth = 0;
-
-  for (const char of childrenStr) {
-    if (char === '[' || char === '(') depth++;
-    if (char === ']' || char === ')') depth--;
-    if (char === ',' && depth === 0) {
-      segments.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  if (current.trim()) segments.push(current.trim());
-
-  for (const seg of segments) {
-    const id = extractIdFromParens(seg);
-    const wikilink = extractWikilink(seg);
-
-    if (wikilink) {
-      const name = extractNameFromWikilink(wikilink);
-      children.push({ name, id, link: wikilink });
-    } else if (id) {
-      // Plain text name with ID — strip numbering, ID in parens, and trailing info
-      const name = seg.replace(/^\d+\.\s*/, '').replace(/\(I\d+[^)]*\)/g, '').replace(/,\s*(twin|b\.).*$/i, '').trim();
-      children.push({ name, id, link: '' });
-    } else {
-      // Plain text name without wikilink or GEDCOM ID — still include it
-      const name = seg.replace(/^\d+\.\s*/, '').replace(/\([^)]*\)/g, '').trim();
-      if (name && name !== '—') {
-        children.push({ name, id: '', link: '' });
-      }
-    }
-  }
-
-  return children;
-}
-
-function parseSpouse(spouseStr: string): { name: string; id: string; marriageDate: string; link: string } | null {
-  if (!spouseStr || spouseStr === '—') return null;
-
-  const id = extractIdFromParens(spouseStr);
-  const wikilink = extractWikilink(spouseStr);
-  const marriageMatch = spouseStr.match(/m\.\s*(.+?)(?:\s*\||\s*$)/);
-  const marriageDate = marriageMatch ? marriageMatch[1].trim() : '';
-
-  let name: string;
-  if (wikilink) {
-    name = extractNameFromWikilink(wikilink);
-  } else {
-    name = spouseStr
-      .replace(/\[\[[^\]]+\]\]/g, '')
-      .replace(/\(I\d+\)/g, '')
-      .replace(/,\s*m\.\s*.*/g, '')
-      .trim();
-  }
-
-  return { name, id, marriageDate, link: wikilink };
-}
-
-function parseMultipleSpouses(spouseStr: string): { name: string; id: string; marriageDate: string; link: string }[] {
-  if (!spouseStr || spouseStr === '—') return [];
-
-  // Check if there are multiple spouses separated by semicolons or " and "
-  const segments = spouseStr.split(/;\s*/).flatMap(s => {
-    // Don't split on "and" if it's part of a name
-    if (s.includes(') and ') || s.includes('] and ')) {
-      const parts = s.split(/\)\s*and\s*|\]\s*and\s*/);
-      return parts;
-    }
-    return [s];
-  });
-
-  // Usually just one spouse
-  const result: { name: string; id: string; marriageDate: string; link: string }[] = [];
-  const parsed = parseSpouse(spouseStr);
-  if (parsed) result.push(parsed);
-  return result;
-}
-
-function parseParent(parentStr: string): { id: string; name: string; link: string } {
-  if (!parentStr || parentStr === '—') return { id: '', name: '', link: '' };
-
-  const id = extractIdFromParens(parentStr);
-  const wikilink = extractWikilink(parentStr);
-
-  let name: string;
-  if (wikilink) {
-    name = extractNameFromWikilink(wikilink);
-  } else {
-    name = parentStr
-      .replace(/\[\[[^\]]+\]\]/g, '')
-      .replace(/\(I\d+\)/g, '')
-      .trim();
-  }
-
-  return { id, name, link: wikilink };
-}
-
-function inferMediaType(path: string): string {
-  if (path.startsWith('gravestones/')) return 'gravestone';
-  if (path.startsWith('portraits/')) return 'portrait';
-  if (path.startsWith('documents/')) return 'document';
-  if (path.startsWith('newspapers/')) return 'newspaper';
-  if (path.startsWith('group_photos/')) return 'group_photo';
-  if (path.startsWith('scans/')) return 'scan';
-  return 'other';
-}
 
 function parseMediaIndex(): MediaEntry[] {
   if (!existsSync(MEDIA_INDEX)) return [];
@@ -319,42 +125,6 @@ function parseMediaIndex(): MediaEntry[] {
   }
 
   return entries;
-}
-
-function extractSection(content: string, heading: string): string {
-  const lines = content.split('\n');
-  let inSection = false;
-  const result: string[] = [];
-  for (const line of lines) {
-    if (line.match(new RegExp(`^##\\s+${heading}`, 'i'))) {
-      inSection = true;
-      continue;
-    }
-    if (inSection && line.match(/^## /)) break;
-    if (inSection) result.push(line);
-  }
-  return result.join('\n').trim();
-}
-
-function extractFullText(content: string): string {
-  // Get the blockquoted text (lines starting with >)
-  const lines = content.split('\n');
-  const quoted: string[] = [];
-  let inFullText = false;
-  for (const line of lines) {
-    if (line.match(/^##\s+Full Text/i)) { inFullText = true; continue; }
-    if (inFullText && line.match(/^## /)) break;
-    if (inFullText && line.startsWith('>')) {
-      quoted.push(line.replace(/^>\s?/, ''));
-    }
-  }
-  if (quoted.length > 0) return quoted.join('\n');
-  // Fallback: look for any blockquote in the content
-  const allQuoted: string[] = [];
-  for (const line of lines) {
-    if (line.startsWith('>')) allQuoted.push(line.replace(/^>\s?/, ''));
-  }
-  return allQuoted.join('\n');
 }
 
 async function parseSourceFiles(): Promise<SourceEntry[]> {
@@ -401,6 +171,7 @@ async function parseSourceFiles(): Promise<SourceEntry[]> {
       notes,
       translationSlug: fm.translation_slug || '',
       ocrVerified: fm.ocr_verified === true ? true : fm.ocr_verified === false ? false : null,
+      media: [],
       _mediaRefs: fm.media || [],
     });
   }
@@ -540,14 +311,14 @@ async function main() {
 
   // Assign media to each person from their explicit YAML media: list (no name matching)
   for (const person of people) {
-    const refs: string[] = (person as any)._mediaRefs || [];
+    const refs = person._mediaRefs;
     person.media = refs
       .map(path => mediaByPath.get(path))
       .filter((m): m is MediaEntry => m !== undefined);
     if (refs.length > 0 && person.media.length === 0) {
       console.warn(`WARNING: ${person.name} has ${refs.length} media refs but none resolved: ${refs.join(', ')}`);
     }
-    delete (person as any)._mediaRefs;
+    delete (person as Partial<PersonData>)._mediaRefs;
   }
 
   // Parse sources from actual source files
@@ -556,11 +327,11 @@ async function main() {
 
   // Resolve source media refs the same way as person media
   for (const source of sources) {
-    const refs: string[] = (source as any)._mediaRefs || [];
-    (source as any).media = refs
-      .map((path: string) => mediaByPath.get(path))
-      .filter((m: MediaEntry | undefined): m is MediaEntry => m !== undefined);
-    delete (source as any)._mediaRefs;
+    const refs = source._mediaRefs;
+    source.media = refs
+      .map(path => mediaByPath.get(path))
+      .filter((m): m is MediaEntry => m !== undefined);
+    delete (source as Partial<SourceEntry>)._mediaRefs;
   }
 
   // Calculate stats
