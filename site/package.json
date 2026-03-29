@@ -11,6 +11,8 @@
     "export:gedcom": "npx tsx scripts/export-gedcom.ts",
     "import:gedcom": "npx tsx scripts/import-gedcom.ts",
     "init": "npx tsx scripts/init-project.ts",
+    "upload:media": "npx tsx scripts/upload-media.ts",
+    "deploy": "npm run build:data && npm run upload:media && npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",

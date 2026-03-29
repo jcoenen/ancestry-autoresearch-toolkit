@@ -12,6 +12,9 @@ site/src/data/site-data.json
 *.log
 npm-debug.log*
 
+# Media upload manifest (per-vault, contains hashes of uploaded files)
+.media-manifest.json
+
 # Environment
 .env
 .env.local
