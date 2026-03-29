@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useSiteConfig } from '../useData'
+import SearchBar from './SearchBar'
 
 const links = [
   { to: '/', label: 'Home' },
@@ -76,6 +77,8 @@ export default function Nav() {
               )
             })}
 
+            <SearchBar />
+
             {/* Explore dropdown */}
             <div ref={exploreRef} className="relative">
               <button
@@ -137,6 +140,9 @@ export default function Nav() {
       {menuOpen && (
         <div className="sm:hidden border-t border-stone-200 bg-white">
           <div className="px-4 py-2 space-y-1">
+            <div className="py-2">
+              <SearchBar />
+            </div>
             {links.map(link => {
               const isActive = link.to === '/'
                 ? location.pathname === '/'

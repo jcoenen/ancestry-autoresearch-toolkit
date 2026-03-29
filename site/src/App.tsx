@@ -19,6 +19,7 @@ import StatsPage from './pages/StatsPage'
 import OnThisDayPage from './pages/OnThisDayPage'
 import ResearchGapsPage from './pages/ResearchGapsPage'
 import ImmigrationPage from './pages/ImmigrationPage'
+import SearchPage from './pages/SearchPage'
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -39,6 +40,7 @@ function App() {
           <Route path="/sources" element={<SourcesPage />} />
           <Route path="/sources/:slug" element={<SourceDetailPage />} />
           <Route path="/gallery" element={<MediaGallery />} />
+          <Route path="/search" element={<SearchPage />} />
           <Route path="/report" element={<ReportPage />} />
           <Route path="/translations/:slug" element={<TranslationPage />} />
           <Route path="/timeline" element={<TimelinePage />} />
