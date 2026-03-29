@@ -87,13 +87,37 @@ git init
 git submodule add https://github.com/jcoenen/ancestry-autoresearch-toolkit.git toolkit
 ```
 
-### 3. Create your vault structure
+### 3. Run the init wizard
+
+```bash
+cd toolkit/site && npm install && cd ../..
+npx tsx toolkit/site/scripts/init-project.ts
+```
+
+The wizard walks you through:
+- Family surname and researcher name
+- Building your family tree (root person → parents → grandparents) with whatever you know
+- Countries of origin and research goals
+- Optional GEDCOM import from an existing tree
+
+It creates the vault directory structure, person files, site config, vault-level docs, wrapper scripts, `.gitignore`, and `CLAUDE.md` — everything you need to start researching.
+
+### 4. Start the dev server
+
+```bash
+npm run dev
+```
+
+<details>
+<summary>Manual setup (without the wizard)</summary>
+
+### Create your vault structure
 
 ```bash
 mkdir -p YourFamily_Genealogy/{people,sources/{obituaries,cemetery,census,church},media/{gravestones,portraits,newspapers,documents},dna}
 ```
 
-### 4. Create your site config
+### Create your site config
 
 Create `YourFamily_Genealogy/site-config.json`:
 
@@ -110,7 +134,7 @@ Create `YourFamily_Genealogy/site-config.json`:
 }
 ```
 
-### 5. Create a root package.json
+### Create a root package.json
 
 ```json
 {
@@ -126,12 +150,14 @@ Create `YourFamily_Genealogy/site-config.json`:
 }
 ```
 
-### 6. Install and run
+### Install and run
 
 ```bash
 npm run setup    # Install dependencies
 npm run dev      # Start dev server
 ```
+
+</details>
 
 ## Project Structure
 
