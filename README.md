@@ -119,6 +119,7 @@ Create `YourFamily_Genealogy/site-config.json`:
     "build:data": "cd toolkit/site && VAULT_ROOT=../../YourFamily_Genealogy npm run build:data",
     "build": "cd toolkit/site && VAULT_ROOT=../../YourFamily_Genealogy npm run build",
     "validate": "cd toolkit/site && VAULT_ROOT=../../YourFamily_Genealogy npm run validate",
+    "test": "cd toolkit/site && npm test",
     "setup": "cd toolkit/site && npm install"
   }
 }
@@ -222,6 +223,7 @@ The included `upload-media.sh` script handles R2 uploads if you configure the `m
 - **Markdown rendering**: react-markdown + remark-gfm
 - **Build scripts**: tsx (TypeScript execution)
 - **Validation**: Custom TypeScript validator
+- **Testing**: Vitest (102 unit tests for build/validation parsing logic)
 - **Media CDN**: Cloudflare R2 (optional)
 
 ## License
