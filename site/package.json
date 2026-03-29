@@ -9,6 +9,7 @@
     "build": "npm run build:data && tsc -b && vite build",
     "validate": "npx tsx scripts/validate_vault.ts",
     "export:gedcom": "npx tsx scripts/export-gedcom.ts",
+    "import:gedcom": "npx tsx scripts/import-gedcom.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",

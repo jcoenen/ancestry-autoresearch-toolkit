@@ -57,19 +57,59 @@ export const MONTH_NAMES = [
 
 export function parseFullDate(dateStr: string): { month: number; day: number; year: number } | null {
   if (!dateStr || dateStr === 'Unknown' || dateStr === '\u2014' || dateStr.startsWith('~')) return null
+
+  // ISO: YYYY-MM-DD
   const iso = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
   if (iso) return { year: +iso[1], month: +iso[2], day: +iso[3] }
+
+  // "Month DD, YYYY" or "Month DD YYYY"
+  const mdy = dateStr.match(/^([A-Z][a-z]+)\s+(\d{1,2}),?\s*(\d{4})/)
+  if (mdy) {
+    const monthNum = MONTH_ABBR[mdy[1]]
+    if (monthNum) return { year: +mdy[3], month: monthNum, day: +mdy[2] }
+  }
+
+  // "DD Month YYYY"
+  const dmy = dateStr.match(/^(\d{1,2})\s+([A-Z][a-z]+)\s+(\d{4})/)
+  if (dmy) {
+    const monthNum = MONTH_ABBR[dmy[2]]
+    if (monthNum) return { year: +dmy[3], month: monthNum, day: +dmy[1] }
+  }
+
   return null
 }
 
 export function parseMarriageDate(dateStr: string): { month: number; day: number; year: number; location: string } | null {
   if (!dateStr || dateStr.startsWith('~') || dateStr.includes('md]]')) return null
-  const match = dateStr.match(/^([A-Z][a-z]+)\s+(\d{1,2}),?\s*(\d{4})(.*)/)
-  if (!match) return null
-  const monthNum = MONTH_ABBR[match[1]]
-  if (!monthNum) return null
-  const location = match[4] ? match[4].replace(/^[,\s]+/, '').replace(/\)+$/, '').trim() : ''
-  return { month: monthNum, day: +match[2], year: +match[3], location }
+
+  // ISO: YYYY-MM-DD with optional trailing location
+  const iso = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})(.*)/)
+  if (iso) {
+    const location = iso[4] ? iso[4].replace(/^[,\s]+/, '').replace(/\)+$/, '').trim() : ''
+    return { year: +iso[1], month: +iso[2], day: +iso[3], location }
+  }
+
+  // "Month DD, YYYY" or "Month DD YYYY"
+  const mdy = dateStr.match(/^([A-Z][a-z]+)\s+(\d{1,2}),?\s*(\d{4})(.*)/)
+  if (mdy) {
+    const monthNum = MONTH_ABBR[mdy[1]]
+    if (monthNum) {
+      const location = mdy[4] ? mdy[4].replace(/^[,\s]+/, '').replace(/\)+$/, '').trim() : ''
+      return { month: monthNum, day: +mdy[2], year: +mdy[3], location }
+    }
+  }
+
+  // "DD Month YYYY"
+  const dmy = dateStr.match(/^(\d{1,2})\s+([A-Z][a-z]+)\s+(\d{4})(.*)/)
+  if (dmy) {
+    const monthNum = MONTH_ABBR[dmy[2]]
+    if (monthNum) {
+      const location = dmy[4] ? dmy[4].replace(/^[,\s]+/, '').replace(/\)+$/, '').trim() : ''
+      return { month: monthNum, day: +dmy[1], year: +dmy[3], location }
+    }
+  }
+
+  return null
 }
 
 /**

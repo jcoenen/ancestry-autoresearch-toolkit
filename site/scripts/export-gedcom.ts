@@ -107,6 +107,13 @@ function toGedcomDate(dateStr: string): string | null {
     return approx ? `ABT ${d}` : d;
   }
 
+  // "DD Month YYYY"
+  const dmy = cleaned.match(/^(\d{1,2})\s+([A-Z][a-z]+)\s+(\d{4})/);
+  if (dmy && dmy[2] in MONTH_ABBR) {
+    const d = `${+dmy[1]} ${GEDCOM_MONTHS[MONTH_ABBR[dmy[2]]]} ${dmy[3]}`;
+    return approx ? `ABT ${d}` : d;
+  }
+
   return null;
 }
 
@@ -488,7 +495,8 @@ function main() {
     // Marriage event
     if (fam.marriageDate) {
       lines.push(gedLine(1, 'MARR'));
-      const mdMatch = fam.marriageDate.match(/^([A-Z][a-z]+\s+\d{1,2},?\s*\d{4})(.*)$/);
+      // Match date portion: ISO (YYYY-MM-DD), "Month DD, YYYY", or "DD Month YYYY"
+      const mdMatch = fam.marriageDate.match(/^(\d{4}-\d{2}-\d{2}|[A-Z][a-z]+\s+\d{1,2},?\s*\d{4}|\d{1,2}\s+[A-Z][a-z]+\s+\d{4})(.*)$/);
       if (mdMatch) {
         const gd = toGedcomDate(mdMatch[1]);
         if (gd) lines.push(gedLine(2, 'DATE', gd));
