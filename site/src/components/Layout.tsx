@@ -21,6 +21,9 @@ export default function Layout({ children }: { children: ReactNode }) {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 text-center text-sm text-stone-400">
           <p>{config.siteTitle} &middot; {config.footerTagline}</p>
           <p className="mt-1">Research by {config.researcher}</p>
+          <p className="mt-1">
+            Built with <a href="https://github.com/jcoenen/ancestry-autoresearch-toolkit" target="_blank" rel="noopener noreferrer" className="underline hover:text-stone-600">ancestry-autoresearch-toolkit</a>
+          </p>
         </div>
       </footer>
     </div>
