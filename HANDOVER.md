@@ -1,249 +1,82 @@
-# Handover — 2026-03-29
+# Handover — 2026-03-30
 
 ## What Was Done
 
-### Session 9: Actionable Research Gaps (#12) + Translation Workflow (#15)
+### Session 10: Vertical Tree Redesign
 
-Two improvements completed: made the Research Gaps page actionable with export capabilities, and built a complete translation management workflow.
+Replaced the entire family tree page with a new vertical tree system. The old horizontal landscape/pedigree/descendant views are gone (still in git history at `528a1d6~1`).
 
-#### Research Gaps Enhancements (#12)
+#### New Tree Views (`VerticalTreePrototypes.tsx`)
 
-**ResearchGapsPage** (`site/src/pages/ResearchGapsPage.tsx`) now includes:
+Four view modes, all accessible via `/tree/:personId?`:
 
-- **"Where to look" suggestions** — each gap section has an amber callout with 3-4 specific research tips (e.g., "Check birth certificates in the person's birthplace civil registry", "Search FindAGrave.com for cemetery records")
-- **Priority Research Targets** — new section showing top 20 people sorted by most missing fields (out of 6 key fields: born, died, birthplace, biography, father, mother)
-- **Export Plan button** — downloads `research-plan-YYYY-MM-DD.md` with:
-  - Per-person checkbox task lists sorted by gap count (most gaps first)
-  - Unverified OCR and untranslated source task lists
-  - Research tips by gap type
-- **Copy Plan button** — same markdown content to clipboard
-- **Untranslated Sources section** — new gap category showing non-English sources without translation files
+1. **Ancestors** — Vertical expanding tree. Focus person at top, ancestors expand downward on click (chevron buttons). Auto-expands 2 generations. Pure CSS flexbox with natural vertical scrolling. Works well on mobile.
 
-**Pure library** (`site/scripts/lib/research-plan.ts`) — `generateResearchPlan()` and `SUGGESTIONS` extracted to a testable module (no React/filesystem deps).
+2. **Full Pedigree** — Dagre layout with `rankdir: 'TB'` (top-to-bottom). All ancestors visible at once. React Flow canvas with zoom/pan. Blue edges = paternal, pink = maternal.
 
-#### Translation Workflow (#15)
+3. **Navigator** — Always fits on screen. Shows grandparents, parents, focus person, and children in centered rows. Click any card to re-center the view on that person. Small arrow icon in card corner links to person's profile page.
 
-**New `language` field** on source files:
-- Added to `SourceEntry` interface in `types.ts` and `build-data.ts`
-- Sources with `language: "German"` (or any non-English value) and no `translation_slug` appear as untranslated gaps
-- Documented in METHODOLOGY.md under new "Optional Frontmatter Fields" section
+4. **Descendants** — Collapsible indented tree showing all descendants of the focused person. Auto-expands 3 levels. Works for any person (not just patrilineal root like before).
 
-**New `manage-translations.ts` script** (`site/scripts/manage-translations.ts`):
-- `npm run translations` — reports translation coverage grouped by language
-- `npm run translations --create` — creates translation stub files in `media/documents/`
-- `npm run translations --create --link` — also updates source YAML frontmatter with `translation_slug`
-- `npm run translations --dry-run` — preview mode
-- Stubs include: header, source reference, language, translation placeholder, notes section
+#### Person Selector
 
-#### Files Created
-- `site/scripts/lib/research-plan.ts` — pure research plan generation
-- `site/scripts/manage-translations.ts` — translation management CLI
-- `site/scripts/__tests__/research-plan.test.ts` — 7 tests for plan generation
-- `site/scripts/__tests__/manage-translations.test.ts` — 4 tests for translation helpers
+Searchable dropdown in the page header for picking the focus person:
+- Shows current person with avatar, years, birthplace
+- Click to open dropdown with type-to-search filtering
+- Filter by name or family surname
+- Enter key selects when one result remains, Escape closes
+- "Back to root" button with home icon next to selector
 
-#### Files Modified
-- `site/src/pages/ResearchGapsPage.tsx` — suggestions, priority targets, export/copy, untranslated section
-- `site/src/types.ts` — added `language` to `SourceEntry`
-- `site/scripts/build-data.ts` — added `language` field to source parsing
-- `site/package.json` — added `translations` script
-- `METHODOLOGY.md` — documented optional frontmatter fields (language, translation_slug, ocr_verified, memorial_id)
+#### Card Design
 
-### Session 8: Smart Media Uploader (#9)
+Compact `VCard` component (190px default) with:
+- Gender-colored avatar circles (blue/pink)
+- Name + birth-death years
+- Spouse shown below divider when present
+- Two modes: link mode (name links to profile) and navigation mode (whole card clickable, small profile icon in corner)
 
-Replaced the dumb `upload-media.sh` (re-uploaded every file every time) with a smart TypeScript uploader that tracks file hashes.
+#### Connector Lines
 
-#### Implementation
-
-- **`site/scripts/upload-media.ts`** — SHA-256 manifest-based uploader:
-  - Maintains `.media-manifest.json` in vault root tracking `{ path → sha256 }` for each uploaded file
-  - On each run, hashes all local media files and compares to manifest — only uploads new or changed files
-  - Detects bucket changes and triggers full re-upload
-  - `--force` — ignore manifest, re-upload everything
-  - `--dry-run` — preview what would be uploaded/deleted without making changes
-  - `--delete` — removes R2 objects for files deleted locally
-  - Reports per-file status (ok/FAILED) and summary counts
-
-- **`npm run upload:media`** — runs the smart uploader directly
-- **`npm run deploy`** — full pipeline: `build:data → upload:media → build`
-- `.media-manifest.json` added to `.gitignore`
+Pure CSS vertical tree connectors:
+- `VStem` — vertical line segments
+- `VFork` — splits into two branches using border-based half-width connectors
 
 #### Files Created
-- `site/scripts/upload-media.ts`
+- `site/src/pages/VerticalTreePrototypes.tsx` — all 4 views, person selector, shared components, `buildGenderMap` (moved here)
+
+#### Files Deleted
+- `site/src/pages/TreeView.tsx` — old horizontal landscape/pedigree/descendant (1016 lines)
+- `site/src/pages/TreeTestPage.tsx` — React Flow test page (422 lines)
+- `site/src/pages/FullLandscapePage.tsx` — full landscape test page (36 lines)
+- `site/src/pages/FullVerticalPage.tsx` — intermediate prototype (removed during cleanup)
 
 #### Files Modified
-- `site/package.json` — added `upload:media` and `deploy` scripts
-- `.gitignore` — added `.media-manifest.json`
+- `site/src/App.tsx` — routes cleaned up, `/tree` serves new vertical tree
+- `site/src/pages/PersonPage.tsx` — `buildGenderMap` import updated
 
-### Session 7: Interactive Project Initialization (#17)
+### Backlog Update
 
-Added an interactive init wizard that scaffolds a complete family project in one guided flow.
-
-#### Implementation
-
-- **`site/scripts/init-project.ts`** — Interactive CLI wizard using `@inquirer/prompts`. Three-phase flow:
-  1. **Project basics** — family surname, researcher name, countries of origin, research goals
-  2. **Family tree walkthrough** — root person → parents → grandparents (up to 7 people). Per person: full name (required), maiden name for women (right after name), birth year, birth place, death year, death place (all optional). Spouses prompted at each level. Auto-assigns GEDCOM IDs and wikilinks.
-  3. **Finalization** — auto-collected surnames with option to add more, optional GEDCOM file import
-
-  Creates: vault directory structure, person `.md` files with cross-linked relationships, `site-config.json`, 5 vault-level docs (Family_Tree, Open_Questions, Research_Log, Research_Strategy, Summary_Report), `_Media_Index.md`, root `package.json` wrapper, `.gitignore`, `CLAUDE.md`.
-
-- **Maiden name support** — women are filed under birth surname (`family:` field, `people/{BirthSurname}/` path). Wikilinks use maiden name. Surnames auto-collected from all entered people including maiden names.
-
-- **Auto-generated content:**
-  - `Open_Questions.md` — gap detection for every missing birth year/place/death year across all entered people
-  - `Family_Tree.md` — text pedigree chart from entered ancestors
-  - `Research_Strategy.md` — populated with surname lines, countries, goals
-  - `Research_Log.md` — first entry with setup summary
-
-- **`templates/vault-docs/`** — 5 standalone blank templates for vault-level docs (reusable outside the wizard)
-
-- **Idempotency** — pre-flight checks verify toolkit exists and vault doesn't already exist
-- **GEDCOM import** — optional step invokes existing `import-gedcom.ts` on user's `.ged` file
-- **Post-scaffold** — auto-runs `npm install`, prints next steps
-
-#### Files Created
-- `site/scripts/init-project.ts`
-- `templates/vault-docs/Family_Tree.md`
-- `templates/vault-docs/Open_Questions.md`
-- `templates/vault-docs/Research_Log.md`
-- `templates/vault-docs/Research_Strategy.md`
-- `templates/vault-docs/Summary_Report.md`
-
-#### Files Modified
-- `site/package.json` — added `@inquirer/prompts` dep + `init` script
-- `README.md` — Quick Start leads with wizard, manual steps in collapsible section
-
-### Session 6: Global Full-Text Search (#13)
-
-Added global fuzzy search across all people and sources using fuse.js.
-
-#### Implementation
-
-- **`useSearch.ts`** — Builds a Fuse.js index over 10 fields: name, family, birthplace, occupation, biography (people); full text, extracted facts, notes, record, publisher (sources). Privacy-aware — private people's sensitive fields excluded from the index. Returns grouped, scored results with match metadata for snippet highlighting.
-- **`SearchBar.tsx`** — Compact search input in the nav bar. Cmd+K / Ctrl+K keyboard shortcut to focus. Navigates to `/search?q=...` on Enter. URL-synced when on the search page.
-- **`SearchPage.tsx`** — Results page with people and sources in separate sections. Each result card shows type badge (Person/Source), title, subtitle, and a highlighted snippet from the matched field.
-- **`Nav.tsx`** — SearchBar added to desktop nav (between links and Explore dropdown) and mobile menu (top of dropdown).
-- **`App.tsx`** — Added `/search` route.
-
-#### Backlog
-
-- Dropped #11 (incremental builds) — complexity not worth the small time savings on typical vault sizes.
-
-### Session 5: Complete Privacy Redaction (#5)
-
-Implemented full privacy redaction so `privacy: true` people have their personal details stripped from `site-data.json` at build time, while preserving their name and family structure in the tree.
-
-#### Design
-
-- **Always visible:** name, gender, family, confidence, slug, father/mother links, spouse links (names/IDs), children links
-- **Redacted from published JSON:** all dates, places, vitals, biography, birth date analysis, sources, media, marriage dates
-- **Cross-spouse protection:** marriage dates blanked on public people married to private people
-- **Global media filtering:** media items exclusively associated with private people excluded from published media array
-
-#### Build Pipeline (`build-data.ts`)
-
-- Blanked 6 previously leaking fields: `religion`, `occupation`, `nickname`, `education`, `residence`, `familySearchId`
-- Blanked `sources` (was shipping full array) and `_mediaRefs` (was resolving media) for private people
-- Added marriage date blanking on private people's own spouse records
-- Added `redactCrossSpouseMarriageDates()` post-processing pass
-- Filtered global media array — private-only media excluded, shared media kept
-- Stats use filtered media count
-
-#### GEDCOM Export (`export-gedcom.ts`)
-
-- Private people now get minimal INDI records (name + sex + `RESN confidential` + FAMC/FAMS links) instead of being skipped entirely — fixes GEDCOM validity for downstream software
-- Marriage/divorce events suppressed on FAM records where either spouse is private
-- INDI count now includes all people
-
-#### UI Defense-in-Depth (`PersonPage.tsx`, `HomePage.tsx`)
-
-- Privacy notice banner on PersonPage for private people
-- Explicit `!person.privacy` guards on biography, birth date analysis, sources, and media sections
-- HomePage birthplace display guarded
-
-#### Testable Helpers (`build-helpers.ts`)
-
-- Extracted `applyPrivacyRedaction()` — blanks all personal detail fields, sources, media, marriage dates
-- Extracted `redactCrossSpouseMarriageDates()` — cross-spouse marriage date blanking
-- 9 new tests in `privacy-redaction.test.ts`
-
-### Session 4: GEDCOM Import (#6) + Date Parsing Fix (#14)
-
-#### GEDCOM Import
-
-Created `site/scripts/import-gedcom.ts` — a full GEDCOM 5.5.1 parser that generates person markdown files matching the vault template format.
-
-**Features:**
-- Parses INDI, FAM records with full field coverage
-- Generates frontmatter (name, born, died, family, gender, gedcom_id, confidence: stub)
-- Builds vital info tables with wikilinked parents, spouses (with marriage dates/places), children
-- Handles all 20+ vital fields: burial, cremation, baptism, christening, immigration, emigration, naturalization, military, occupation, education, religion, residence, nickname, FamilySearch ID, cause of death, divorce
-- Reassembles CONT/CONC biography text from NOTE records
-- Multiple spouses with ordinal labels (1st, 2nd, etc.) and per-marriage children groups
-- Skips existing files (safe to re-run)
-- `--dry-run` flag to preview without writing
-- `--out-dir` flag to override output directory
-- Run: `npm run import:gedcom <file.ged>`
-
-#### Date Parsing Consistency (#14)
-
-All date parsers now support 3 formats consistently: ISO (`YYYY-MM-DD`), `"Month DD, YYYY"`, `"DD Month YYYY"`.
-
-| Function | Before | After |
-|---|---|---|
-| `parseFullDate()` | ISO only | All 3 formats |
-| `parseMarriageDate()` | "Month DD, YYYY" only | All 3 formats + location extraction |
-| `toGedcomDate()` | ISO + "Month DD, YYYY" | All 3 formats |
-| Marriage date regex in FAM export | "Month DD, YYYY" only | All 3 formats |
-
-### Session 3: Batch Improvements (#3, #4, #6, #7, #8, #10) + GEDCOM Field Expansion
-
-Completed 6 items from the improvements backlog, then expanded GEDCOM coverage with 8 additional fields.
-
-#### Backlog Items Completed
-
-| # | Item | What Changed |
-|---|---|---|
-| 3 | React error boundaries | Created `ErrorBoundary` class component. Top-level boundary wraps all routes; page-level on PersonPage and TreeView with custom fallback titles. |
-| 4 | Orphaned sources → errors | `crossReferenceCheck` now emits errors. `validate_vault.ts` counts toward `totalErrors` and exits(1). Matches METHODOLOGY.md. Updated test. |
-| 6 | GEDCOM export | New `scripts/export-gedcom.ts` — GEDCOM 5.5.1 with INDI, FAM, SOUR, OBJE records. Run via `npm run export:gedcom`. |
-| 7 | Explicit gender field | Added `gender: M \| F` to person template, types, build-data. `buildGenderMap()` prefers explicit gender over structural inference. |
-| 8 | On This Day expanded | 11 event types (was 3). New `parseDateFromText()` for freeform vital fields. Each type has distinct color and emoji. |
-| 10 | Atomic writes | Build writes to `.site-data.json.tmp` then `renameSync()` to final path. |
-
-#### GEDCOM Field Expansion
-
-Promoted 6 supplemental vital fields to parsed + added 2 new ones:
-
-| Field | Person property | GEDCOM tag |
-|---|---|---|
-| Baptized | `baptized` | `BAPM` |
-| Christened | `christened` | `CHR` |
-| Nickname / Also Known As | `nickname` | `NICK` |
-| Education | `education` | `EDUC` |
-| Residence | `residence` | `RESI` |
-| FamilySearch ID | `familySearchId` | `REFN` (type: FamilySearch) |
-| Divorce | `divorce` | `DIV` (on FAM record) |
-| Cremation | `cremation` | `CREM` |
+- **#16 (Cross-vault linking)** — DROPPED. Not worth the complexity; just duplicate overlapping people in each vault.
+- **All 17 items now done or dropped.** Backlog is fully cleared.
 
 ## Commits
 
-- `1cc7890` — Add actionable research gaps and translation management workflow
-- `55fc9ad` — Add smart media uploader with SHA-256 diffing
-- `577371f` — Add interactive project initialization wizard
-- `88e6d89` — Add global full-text search across people and sources
-- `7c08029` — Complete privacy redaction for private people across build pipeline, GEDCOM export, and UI
-- `69cfd67` — Add GEDCOM import and fix date parsing consistency across all parsers
-- `918169c` — Add error boundaries, GEDCOM export, gender field, expanded On This Day, atomic writes, and orphaned source enforcement
+- `528a1d6` — Replace horizontal tree views with vertical tree system
 
-## Improvements Backlog Status
+## Previous Sessions
 
-**Done:** #1, #2, #3, #4, #5, #6 (export + import), #7, #8, #9, #10, #12, #13, #14, #15, #17
-**Dropped:** #11 (incremental builds — not worth the complexity)
-**Remaining:** #16 (cross-vault linking)
+See git history for sessions 1-9. Key prior commits:
+- `1cc7890` — Actionable research gaps + translation workflow
+- `55fc9ad` — Smart media uploader with SHA-256 diffing
+- `577371f` — Interactive project initialization wizard
+- `88e6d89` — Global full-text search
+- `7c08029` — Complete privacy redaction
+- `69cfd67` — GEDCOM import + date parsing consistency
+- `918169c` — Error boundaries, GEDCOM export, gender field, On This Day expansion
 
 ## State
 
 - 194 tests passing
 - TypeScript type-checks clean
 - Pushed to `master`
+- Dummy `site-data.json` in `site/src/data/` for local dev (gitignored)

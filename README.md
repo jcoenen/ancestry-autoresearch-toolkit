@@ -17,7 +17,7 @@ One toolkit, multiple family projects. Each family gets its own repo with this t
 
 ### Website (React + Vite + TypeScript + Tailwind)
 
-- **Interactive family tree** — landscape, pedigree, and descendant views with click-to-navigate
+- **Interactive family tree** — vertical expanding ancestors, full pedigree (dagre top-to-bottom), navigator (click-to-explore context window), and descendant views. Person selector with search. All views work for any person
 - **Person pages** — biography, vital information, source citations, media gallery per person
 - **Source browser** — searchable/filterable table of all sources with full text and extracted facts
 - **Media gallery** — gravestones, portraits, newspaper clippings, documents
