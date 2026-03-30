@@ -44,7 +44,10 @@ date_of_document: 2000-03-28
 date_accessed: 2026-03-19
 url: "https://..."              # original source URL for re-download
 publisher: "Newspaper Name, City State"
-persons:                        # EVERY person named in the document
+persons:                        # Every genealogically relevant person: family
+                                # members, spouses, children, siblings, in-laws.
+                                # Exclude incidental names (officiants, pallbearers,
+                                # funeral directors) UNLESS they are also family.
   - Person One
   - Person Two
 families:                       # surname groups mentioned
@@ -135,6 +138,18 @@ tags: [genealogy, Surname, person]
 - **Pre-1800 with only a first name** from a church/parish record → Create a stub file. They're real people with a real source.
 - **Laterals** (siblings' spouses, siblings' children, etc.) → Create the file with what we know from the mentioning source. Do NOT deep-dive research — just record what's in hand.
 
+### Family Unit Completeness (CRITICAL)
+
+When a source lists someone's children, **ALL named children get person files** with proper `Father`/`Mother` wikilinks back to the parent(s). No exceptions. This is the most commonly skipped step.
+
+- **Biological children** → person file with `Father`/`Mother` wikilinks
+- **Stepchildren** → person file; note the step-parent relationship in the biography, not as `Father`/`Mother`
+- **Children from multiple marriages** → each child links to their biological parents; the parent's file uses `Children (1st marriage)` / `Children (2nd marriage)` field names
+
+**Do not skip children because they seem "too lateral."** Half-siblings, step-siblings, and out-of-bloodline children are one source discovery away from being genealogically critical. If the source names them, they get a file.
+
+This rule is not new — it is a specific application of "If a person is named in a source, they get a person file" (above). It is called out explicitly because agents consistently rationalize skipping children as "not in the direct bloodline."
+
 ### Confidence Rules (CRITICAL)
 
 Confidence level is based on the **quality and directness of sources**, not just whether data exists:
@@ -222,6 +237,21 @@ This is the standard way of working when processing a FindAGrave memorial:
 9. Update _Media_Index.md
 10. Run validation — **zero orphaned sources required before commit**
 
+## Web Source Acquisition Protocol
+
+When fetching ANY source from a website (funeral home, newspaper archive, historical society, etc.):
+
+1. Save the full source text in the source file
+2. **Download ALL images** present on the page — portraits, document scans, newspaper clippings, group photos
+3. Categorize and name each image per the Media Naming Convention above
+4. Add every image to the source file's `media:` frontmatter array
+5. Add every image to `_Media_Index.md` with the source URL for re-download
+6. List EVERY genealogically relevant person in the `persons:` frontmatter array (see persons array definition above)
+7. **Create or update a person file for every person in the `persons:` array**
+8. Run validation — zero orphaned sources required before commit
+
+This applies to ALL web sources, not just FaG. The FaG Mining Protocol above is a specialized version of this for FindAGrave's specific page structure.
+
 ## Multi-Part Newspaper Clipping Assembly
 
 When multiple photos from the same FaG memorial are from the same newspaper, same date, same page:
@@ -282,6 +312,16 @@ From the project root (with toolkit as submodule):
 npm run validate     # Must pass with zero errors before committing
 npm run build:data   # Verify site picks up all sources
 ```
+
+### Persons Array Resolution
+
+The validation script checks that every name in a source file's `persons:` frontmatter array can be matched to an existing person file in `people/`. Unresolved names are flagged as **warnings** with a message like:
+
+```
+sources/obituaries/SRC-OBIT-032.md: "Julie Brandt" in persons array — no matching person file found
+```
+
+This catches the most common failure mode: a source is created with a complete persons list but person files are never created for all entries. The `persons:` array is a contract — if you listed someone, they need a person file.
 
 ## R2 Media Sync
 

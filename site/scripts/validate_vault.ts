@@ -35,11 +35,13 @@ function validateSourceFiles(sourceFiles: string[]): {
   sourceIds: Map<string, string>;
   sourceIdSet: Set<string>;
   claimedMedia: Set<string>;
+  sourcePersons: Map<string, string[]>;
 } {
   const result: ValidationResult = { errors: [], warnings: [] };
   const sourceIds = new Map<string, string>(); // source_id -> file
   const sourceIdSet = new Set<string>();
   const claimedMedia = new Set<string>();
+  const sourcePersons = new Map<string, string[]>(); // "sources/file" -> persons array
   let checked = 0;
 
   const REQUIRED_SOURCE_FIELDS = [
@@ -135,6 +137,8 @@ function validateSourceFiles(sourceFiles: string[]): {
     if (fm.persons) {
       if (!Array.isArray(fm.persons) || fm.persons.length === 0) {
         result.errors.push(`sources/${file}: persons must be a non-empty array`);
+      } else {
+        sourcePersons.set(`sources/${file}`, fm.persons.map((p: unknown) => String(p)));
       }
     }
 
@@ -201,7 +205,7 @@ function validateSourceFiles(sourceFiles: string[]): {
     }
   }
 
-  return { result, checked, sourceIds, sourceIdSet, claimedMedia };
+  return { result, checked, sourceIds, sourceIdSet, claimedMedia, sourcePersons };
 }
 
 // parseVitalTable is imported as parseVitalTableTuples from validate-helpers
@@ -213,11 +217,13 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>): {
   personSourceRefs: Set<string>;
   gedcomIds: Map<string, string>;
   relationships: PersonRelationships[];
+  personNames: Set<string>;
 } {
   const result: ValidationResult = { errors: [], warnings: [] };
   const personSourceRefs = new Set<string>();
   const gedcomIds = new Map<string, string>(); // gedcom_id -> file
   const relationships: PersonRelationships[] = [];
+  const personNames = new Set<string>(); // normalized names for persons array resolution
   let checked = 0;
 
   const REQUIRED_PERSON_FIELDS = [
@@ -238,6 +244,11 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>): {
 
     if (fm.type !== 'person') continue;
     checked++;
+
+    // Collect normalized name for persons array resolution
+    if (fm.name) {
+      personNames.add(String(fm.name).trim().toLowerCase());
+    }
 
     // Check required fields
     for (const field of REQUIRED_PERSON_FIELDS) {
@@ -396,7 +407,7 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>): {
     });
   }
 
-  return { result, checked, personSourceRefs, gedcomIds, relationships };
+  return { result, checked, personSourceRefs, gedcomIds, relationships, personNames };
 }
 
 interface MediaEntryInfo {
@@ -507,6 +518,7 @@ async function main() {
   let sourceIds = new Map<string, string>();
   let sourceIdSet = new Set<string>();
   let claimedMedia = new Set<string>();
+  let sourcePersons = new Map<string, string[]>();
 
   if (existsSync(SOURCES_DIR)) {
     const sourceFiles = await glob('**/*.md', { cwd: SOURCES_DIR });
@@ -515,6 +527,7 @@ async function main() {
     sourceIds = srcValidation.sourceIds;
     sourceIdSet = srcValidation.sourceIdSet;
     claimedMedia = srcValidation.claimedMedia;
+    sourcePersons = srcValidation.sourcePersons;
 
     const srcErrors = srcValidation.result.errors.length;
     const srcWarnings = srcValidation.result.warnings.length;
@@ -544,12 +557,14 @@ async function main() {
   // ── Person Files ──
   let relationships: PersonRelationships[] = [];
   let personSourceRefs = new Set<string>();
+  let personNames = new Set<string>();
 
   if (existsSync(PEOPLE_DIR)) {
     const personFiles = await glob('**/*.md', { cwd: PEOPLE_DIR });
     const pplValidation = validatePersonFiles(personFiles, sourceIdSet);
     relationships = pplValidation.relationships;
     personSourceRefs = pplValidation.personSourceRefs;
+    personNames = pplValidation.personNames;
 
     const pplErrors = pplValidation.result.errors.length;
     const pplWarnings = pplValidation.result.warnings.length;
@@ -642,6 +657,37 @@ async function main() {
     console.log(`  \u2717 ${biErrors} broken links:`);
     for (const e of biResult.errors) {
       console.log(`    ${e}`);
+    }
+  }
+
+  // ── Persons Array Resolution ──
+  // Check that every name in a source's persons: array has a matching person file.
+  // Uses case-insensitive matching on the person file's name field.
+  const personsChecked = new Set<string>();
+  const unresolvedPersons: string[] = [];
+
+  for (const [sourceFile, persons] of sourcePersons) {
+    for (const personName of persons) {
+      const normalized = personName.trim().toLowerCase();
+      if (!normalized) continue;
+      const key = `${sourceFile}:${normalized}`;
+      if (personsChecked.has(key)) continue;
+      personsChecked.add(key);
+
+      if (!personNames.has(normalized)) {
+        unresolvedPersons.push(`${sourceFile}: "${personName}" in persons array — no matching person file found`);
+        totalWarnings++;
+      }
+    }
+  }
+
+  console.log(`\nPersons Array Resolution: ${personsChecked.size} name-source pairs checked`);
+  if (unresolvedPersons.length === 0) {
+    console.log(`  \u2713 All persons in source files have matching person files`);
+  } else {
+    console.log(`  ! ${unresolvedPersons.length} unresolved:`);
+    for (const w of unresolvedPersons) {
+      console.log(`    ${w}`);
     }
   }
 
