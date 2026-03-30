@@ -2,6 +2,16 @@
 
 ## What Was Done
 
+### Session 14: Media Linking Rule Documented
+
+An agent using the toolkit repeatedly linked images only in source files, missing the person file `media:` array, causing images not to render on the site. Added the rule explicitly to METHODOLOGY.md in three places:
+
+1. **New "Linking (CRITICAL)" subsection** under Media Rules — states images need all three entries: source file `media:`, person file `media:`, and `_Media_Index.md`. Notes that `build:data` must run after any media changes.
+2. **FaG Mining Protocol step 6** — added inline note to also populate person file `media:` arrays.
+3. **Web Source Acquisition Protocol step 4** — merged person file requirement into the existing step.
+
+Commit: `d5906f9`
+
 ### Session 13: Footer GitHub Link
 
 Added a link to the GitHub project (`jcoenen/ancestry-autoresearch-toolkit`) in the site footer so visitors can find and use the toolkit themselves. Shows as "Built with ancestry-autoresearch-toolkit" below the researcher credit line.
