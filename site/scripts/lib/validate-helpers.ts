@@ -92,7 +92,9 @@ export function parseVitalTableTuples(content: string): [string, string][] {
       break;
     }
     if (inVitalSection && line.startsWith('|') && !line.startsWith('|---') && !line.startsWith('| Field')) {
-      const parts = line.split('|').map(p => p.trim()).filter(Boolean);
+      // Replace \| (escaped pipes inside wikilinks) with a placeholder before splitting
+      const safe = line.replace(/\\\|/g, '\x00');
+      const parts = safe.split('|').map(p => p.replace(/\x00/g, '|').trim()).filter(Boolean);
       if (parts.length >= 2) {
         entries.push([parts[0], parts[1]]);
       }
@@ -125,10 +127,10 @@ export interface PersonRelationships {
   filePath: string;
   name: string;
   gedcomId: string;
-  fatherLink: string;
-  motherLink: string;
-  childLinks: string[];
-  spouseLinks: string[];
+  fatherId: string;
+  motherId: string;
+  childIds: string[];
+  spouseIds: string[];
 }
 
 export interface ValidationResult {
@@ -141,58 +143,56 @@ export function checkBidirectionalRelationships(
 ): ValidationResult {
   const result: ValidationResult = { errors: [], warnings: [] };
 
-  // Build lookup: "people/{file}" -> PersonRelationships
-  const byPath = new Map<string, PersonRelationships>();
+  // Build lookup: gedcomId -> PersonRelationships
+  const byId = new Map<string, PersonRelationships>();
   for (const rel of relationships) {
-    byPath.set(`people/${rel.filePath}`, rel);
+    if (rel.gedcomId) byId.set(rel.gedcomId, rel);
   }
 
   for (const person of relationships) {
-    const personPath = `people/${person.filePath}`;
+    if (!person.gedcomId) continue;
 
-    // If I list a Father wikilink, that father's file should list me as a child
-    if (person.fatherLink) {
-      const father = byPath.get(person.fatherLink);
-      if (father && !father.childLinks.includes(personPath)) {
+    // Father: if I list father X, X must list me as a child
+    if (person.fatherId) {
+      const father = byId.get(person.fatherId);
+      if (father && !father.childIds.includes(person.gedcomId)) {
         result.errors.push(
-          `people/${person.filePath}: lists father [[${person.fatherLink}]] but that file does not list this person as a child — add wikilink to ${person.fatherLink}`
+          `people/${person.filePath} (${person.gedcomId}): father is ${person.fatherId} but ${person.fatherId} does not list ${person.gedcomId} as a child`
         );
       }
     }
 
-    // If I list a Mother wikilink, that mother's file should list me as a child
-    if (person.motherLink) {
-      const mother = byPath.get(person.motherLink);
-      if (mother && !mother.childLinks.includes(personPath)) {
+    // Mother: if I list mother X, X must list me as a child
+    if (person.motherId) {
+      const mother = byId.get(person.motherId);
+      if (mother && !mother.childIds.includes(person.gedcomId)) {
         result.errors.push(
-          `people/${person.filePath}: lists mother [[${person.motherLink}]] but that file does not list this person as a child — add wikilink to ${person.motherLink}`
+          `people/${person.filePath} (${person.gedcomId}): mother is ${person.motherId} but ${person.motherId} does not list ${person.gedcomId} as a child`
         );
       }
     }
 
-    // If I list a Child wikilink, that child's file should list me (or my spouse) as a parent
-    for (const childLink of person.childLinks) {
-      const child = byPath.get(childLink);
+    // Children: if I list child X, X must list me (or my spouse) as father or mother
+    for (const childId of person.childIds) {
+      const child = byId.get(childId);
       if (!child) continue;
-
-      const childListsMe = child.fatherLink === personPath || child.motherLink === personPath;
-      const childListsMySpouse = person.spouseLinks.some(
-        sp => child.fatherLink === sp || child.motherLink === sp
+      const childListsMe = child.fatherId === person.gedcomId || child.motherId === person.gedcomId;
+      const childListsMySpouse = person.spouseIds.some(
+        spId => child.fatherId === spId || child.motherId === spId
       );
-
       if (!childListsMe && !childListsMySpouse) {
         result.errors.push(
-          `people/${person.filePath}: lists child [[${childLink}]] but that child's file does not list this person (or their spouse) as a parent`
+          `people/${person.filePath} (${person.gedcomId}): lists child ${childId} but that child does not list ${person.gedcomId} (or their spouse) as a parent`
         );
       }
     }
 
-    // If I list a Spouse wikilink, that spouse's file should list me as a spouse
-    for (const spouseLink of person.spouseLinks) {
-      const spouse = byPath.get(spouseLink);
-      if (spouse && !spouse.spouseLinks.includes(personPath)) {
+    // Spouses: if I list spouse X, X must list me as a spouse
+    for (const spouseId of person.spouseIds) {
+      const spouse = byId.get(spouseId);
+      if (spouse && !spouse.spouseIds.includes(person.gedcomId)) {
         result.errors.push(
-          `people/${person.filePath}: lists spouse [[${spouseLink}]] but that file does not list this person as a spouse — add wikilink to ${spouseLink}`
+          `people/${person.filePath} (${person.gedcomId}): lists spouse ${spouseId} but ${spouseId} does not list ${person.gedcomId} as a spouse`
         );
       }
     }

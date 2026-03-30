@@ -211,7 +211,7 @@ function validateSourceFiles(sourceFiles: string[]): {
 // parseVitalTable is imported as parseVitalTableTuples from validate-helpers
 const parseVitalTable = parseVitalTableTuples;
 
-function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>): {
+function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, allGedcomIds: Set<string>): {
   result: ValidationResult;
   checked: number;
   personSourceRefs: Set<string>;
@@ -369,41 +369,57 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>): {
       }
     }
 
-    // Collect relationship data for bidirectional cross-referencing
-    const extractLinks = (value: string): string[] => {
-      const links: string[] = [];
-      const re = /\[\[([^\]|\\]+?)(?:[\\|][^\]]*?)?\]\]/g;
-      let m;
-      while ((m = re.exec(value)) !== null) {
-        if (m[1].startsWith('people/')) links.push(m[1]);
-      }
-      return links;
-    };
-
-    const fatherVal = vitalTable.find(([f]) => f === 'Father')?.[1] || '';
-    const motherVal = vitalTable.find(([f]) => f === 'Mother')?.[1] || '';
-    const fatherLinks = extractLinks(fatherVal);
-    const motherLinks = extractLinks(motherVal);
-
-    const childLinks: string[] = [];
-    const spouseLinks: string[] = [];
-    for (const [field, value] of vitalTable) {
-      if (field === 'Children' || /^Children \(/.test(field)) {
-        childLinks.push(...extractLinks(value));
-      }
-      if (field === 'Spouse' || /^Spouse \(/.test(field)) {
-        spouseLinks.push(...extractLinks(value));
+    // Validate frontmatter relationship IDs exist in the vault
+    if (fm.father) {
+      if (!GEDCOM_ID_PATTERN.test(String(fm.father))) {
+        result.errors.push(`people/${file}: father "${fm.father}" is not a valid GEDCOM ID (expected I{N})`);
+      } else if (!allGedcomIds.has(String(fm.father))) {
+        result.errors.push(`people/${file}: father "${fm.father}" does not exist in the vault`);
       }
     }
+    if (fm.mother) {
+      if (!GEDCOM_ID_PATTERN.test(String(fm.mother))) {
+        result.errors.push(`people/${file}: mother "${fm.mother}" is not a valid GEDCOM ID (expected I{N})`);
+      } else if (!allGedcomIds.has(String(fm.mother))) {
+        result.errors.push(`people/${file}: mother "${fm.mother}" does not exist in the vault`);
+      }
+    }
+    for (const sp of (fm.spouses || []) as Array<{ id?: string }>) {
+      if (sp.id) {
+        if (!GEDCOM_ID_PATTERN.test(String(sp.id))) {
+          result.errors.push(`people/${file}: spouse id "${sp.id}" is not a valid GEDCOM ID`);
+        } else if (!allGedcomIds.has(String(sp.id))) {
+          result.errors.push(`people/${file}: spouse "${sp.id}" does not exist in the vault`);
+        }
+      }
+    }
+    for (const child of (fm.children || []) as Array<string | { id?: string }>) {
+      const childId = typeof child === 'string' ? child : child.id;
+      if (childId) {
+        if (!GEDCOM_ID_PATTERN.test(String(childId))) {
+          result.errors.push(`people/${file}: child id "${childId}" is not a valid GEDCOM ID`);
+        } else if (!allGedcomIds.has(String(childId))) {
+          result.errors.push(`people/${file}: child "${childId}" does not exist in the vault`);
+        }
+      }
+    }
+
+    // Collect relationship data for bidirectional cross-referencing (ID-based)
+    const childIds = (fm.children || [] as Array<string | { id?: string }>)
+      .map((c: string | { id?: string }) => typeof c === 'string' ? c : (c.id || ''))
+      .filter(Boolean);
+    const spouseIds = (fm.spouses || [] as Array<{ id?: string }>)
+      .map((s: { id?: string }) => s.id || '')
+      .filter(Boolean);
 
     relationships.push({
       filePath: file,
       name: fm.name || '',
       gedcomId: fm.gedcom_id ? String(fm.gedcom_id) : '',
-      fatherLink: fatherLinks[0] || '',
-      motherLink: motherLinks[0] || '',
-      childLinks,
-      spouseLinks,
+      fatherId: fm.father ? String(fm.father) : '',
+      motherId: fm.mother ? String(fm.mother) : '',
+      childIds,
+      spouseIds,
     });
   }
 
@@ -561,7 +577,15 @@ async function main() {
 
   if (existsSync(PEOPLE_DIR)) {
     const personFiles = await glob('**/*.md', { cwd: PEOPLE_DIR });
-    const pplValidation = validatePersonFiles(personFiles, sourceIdSet);
+
+    // Pre-pass: collect all GEDCOM IDs so relationship validation can check references
+    const allGedcomIds = new Set<string>();
+    for (const file of personFiles) {
+      const { data: fm } = matter(readFileSync(resolve(PEOPLE_DIR, file), 'utf-8'));
+      if (fm.type === 'person' && fm.gedcom_id) allGedcomIds.add(String(fm.gedcom_id));
+    }
+
+    const pplValidation = validatePersonFiles(personFiles, sourceIdSet, allGedcomIds);
     relationships = pplValidation.relationships;
     personSourceRefs = pplValidation.personSourceRefs;
     personNames = pplValidation.personNames;

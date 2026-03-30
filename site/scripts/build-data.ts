@@ -5,14 +5,8 @@ import matter from 'gray-matter';
 import {
   formatDate,
   slugify,
-  extractIdFromParens,
-  extractWikilink,
-  extractNameFromWikilink,
   parseVitalTable,
   extractBiography,
-  parseChildren,
-  parseSpouse,
-  parseParent,
   inferMediaType,
   extractSection,
   extractFullText,
@@ -208,18 +202,14 @@ async function main() {
   const people: PersonData[] = [];
   const familySet = new Set<string>();
 
-  // Build a map of file paths to gedcom_ids for resolving wikilinks
-  const fileToId = new Map<string, string>();
-
+  // First pass: build id → name map for resolving relationship display names
+  const idToName = new Map<string, string>();
   for (const file of personFiles) {
     const fullPath = resolve(PEOPLE_DIR, file);
     const raw = readFileSync(fullPath, 'utf-8');
     const { data: fm } = matter(raw);
-
-    if (fm.type !== 'person') continue;
-    if (fm.gedcom_id) {
-      fileToId.set(`people/${file}`, fm.gedcom_id);
-    }
+    if (fm.type !== 'person' || !fm.gedcom_id) continue;
+    idToName.set(String(fm.gedcom_id), fm.name || '');
   }
 
   for (const file of personFiles) {
@@ -233,55 +223,29 @@ async function main() {
     const biography = extractBiography(content);
     const birthDateAnalysis = extractSection(content, 'Birth Date Analysis');
 
-    const fatherInfo = parseParent(vitals['Father'] || '');
-    const motherInfo = parseParent(vitals['Mother'] || '');
+    // Read relationships from YAML frontmatter (structured, no parsing)
+    const fatherId = fm.father ? String(fm.father) : '';
+    const fatherName = idToName.get(fatherId) || '';
+    const motherId = fm.mother ? String(fm.mother) : '';
+    const motherName = idToName.get(motherId) || '';
 
-    // Collect spouses from all variant field names: Spouse, Spouse (1st), Marriage 1, etc.
-    const spouses: { name: string; id: string; marriageDate: string; link: string }[] = [];
-    for (const [key, value] of Object.entries(vitals)) {
-      if (key === 'Spouse' || /^Spouse \(/.test(key) || /^Marriage \d/.test(key)) {
-        const parsed = parseSpouse(value);
-        if (parsed) spouses.push(parsed);
-      }
-    }
+    type SpouseFm = { id?: string; married?: string };
+    type ChildFm = string | { id?: string; spouseIndex?: number };
 
-    // Collect children from all variant field names: Children, Children (1st marriage), Children (w/ ...), etc.
-    // When the field name indicates a marriage number, tag children with spouseIndex
-    const allChildren: { name: string; id: string; link: string; spouseIndex?: number }[] = [];
-    const ORDINAL_MAP: Record<string, number> = { '1st': 0, '2nd': 1, '3rd': 2, '4th': 3, '5th': 4 };
-    for (const [key, value] of Object.entries(vitals)) {
-      if (key === 'Children' || /^Children \(/.test(key)) {
-        const parsed = parseChildren(value);
-        // Extract marriage ordinal from field name, e.g. "Children (2nd marriage)" -> spouseIndex 1
-        const ordinalMatch = key.match(/\((\d+(?:st|nd|rd|th)) marriage\)/);
-        if (ordinalMatch && ordinalMatch[1] in ORDINAL_MAP) {
-          const spouseIndex = ORDINAL_MAP[ordinalMatch[1]];
-          for (const ch of parsed) {
-            ch.spouseIndex = spouseIndex;
-          }
-        }
-        allChildren.push(...parsed);
-      }
-    }
-    const children = allChildren;
+    const spouses: { name: string; id: string; marriageDate: string; link: string }[] =
+      ((fm.spouses || []) as SpouseFm[]).map(sp => ({
+        id: sp.id ? String(sp.id) : '',
+        name: sp.id ? (idToName.get(String(sp.id)) || '') : '',
+        marriageDate: sp.married || '',
+        link: '',
+      }));
 
-    // Resolve wikilink references to gedcom IDs
-    if (fatherInfo.link) {
-      fatherInfo.id = fileToId.get(fatherInfo.link) || fatherInfo.id;
-    }
-    if (motherInfo.link) {
-      motherInfo.id = fileToId.get(motherInfo.link) || motherInfo.id;
-    }
-    for (const sp of spouses) {
-      if (sp.link) {
-        sp.id = fileToId.get(sp.link) || sp.id;
-      }
-    }
-    for (const ch of children) {
-      if (ch.link) {
-        ch.id = fileToId.get(ch.link) || ch.id;
-      }
-    }
+    const children: { name: string; id: string; link: string; spouseIndex?: number }[] =
+      ((fm.children || []) as ChildFm[]).map(child => {
+        const id = typeof child === 'string' ? child : (child.id ? String(child.id) : '');
+        const spouseIndex = typeof child === 'object' ? child.spouseIndex : undefined;
+        return { id, name: idToName.get(id) || '', link: '', spouseIndex };
+      });
 
     const isPrivate = fm.privacy === true;
     const family = fm.family || '';
@@ -308,10 +272,10 @@ async function main() {
       _mediaRefs: isPrivate ? [] : (fm.media || []),  // raw YAML paths, resolved after media index is parsed
       filePath: file,
       slug: slugify(fm.name || ''),
-      father: fatherInfo.id,
-      fatherName: fatherInfo.name,
-      mother: motherInfo.id,
-      motherName: motherInfo.name,
+      father: fatherId,
+      fatherName: isPrivate ? '' : fatherName,
+      mother: motherId,
+      motherName: isPrivate ? '' : motherName,
       spouses,
       children,
       biography: isPrivate ? '' : biography,

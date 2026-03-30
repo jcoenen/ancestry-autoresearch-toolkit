@@ -69,7 +69,9 @@ export function parseVitalTable(content: string): Record<string, string> {
       break;
     }
     if (inVitalSection && line.startsWith('|') && !line.startsWith('|---') && !line.startsWith('| Field')) {
-      const parts = line.split('|').map(p => p.trim()).filter(Boolean);
+      // Replace \| (escaped pipes inside wikilinks) with a placeholder before splitting
+      const safe = line.replace(/\\\|/g, '\x00');
+      const parts = safe.split('|').map(p => p.replace(/\x00/g, '|').trim()).filter(Boolean);
       if (parts.length >= 2) {
         table[parts[0]] = parts[1];
       }
