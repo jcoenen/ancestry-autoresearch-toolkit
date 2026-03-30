@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { usePersonBySlug, usePersonById, useData, usePeople, formatYear, confidenceColor, getSourceSlugById, MEDIA_BASE } from '../useData'
 import type { Person, ChildRef, SpouseRef } from '../types'
-import { buildGenderMap } from './TreeView'
+import { buildGenderMap } from './VerticalTreePrototypes'
 import { findRelationship } from '../relationshipCalculator'
 import type { RelationshipResult } from '../relationshipCalculator'
 

@@ -3,14 +3,11 @@ import { useEffect } from 'react'
 import Layout from './components/Layout'
 import ErrorBoundary from './components/ErrorBoundary'
 import HomePage from './pages/HomePage'
-import TreeView from './pages/TreeView'
 import FamilyDirectory from './pages/FamilyDirectory'
 import PersonPage from './pages/PersonPage'
 import SourcesPage from './pages/SourcesPage'
 import SourceDetailPage from './pages/SourceDetailPage'
 import MediaGallery from './pages/MediaGallery'
-import TreeTestPage from './pages/TreeTestPage'
-import FullLandscapePage from './pages/FullLandscapePage'
 import ReportPage from './pages/ReportPage'
 import ThemeMockups from './pages/ThemeMockups'
 import TranslationPage from './pages/TranslationPage'
@@ -20,6 +17,7 @@ import OnThisDayPage from './pages/OnThisDayPage'
 import ResearchGapsPage from './pages/ResearchGapsPage'
 import ImmigrationPage from './pages/ImmigrationPage'
 import SearchPage from './pages/SearchPage'
+import VerticalTreePrototypes from './pages/VerticalTreePrototypes'
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -34,7 +32,7 @@ function App() {
       <ErrorBoundary>
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/tree/:personId?" element={<ErrorBoundary fallbackTitle="Tree view failed to render"><TreeView /></ErrorBoundary>} />
+          <Route path="/tree/:personId?" element={<ErrorBoundary fallbackTitle="Tree view failed to render"><VerticalTreePrototypes /></ErrorBoundary>} />
           <Route path="/people" element={<FamilyDirectory />} />
           <Route path="/people/:slug" element={<ErrorBoundary fallbackTitle="Person page failed to render"><PersonPage /></ErrorBoundary>} />
           <Route path="/sources" element={<SourcesPage />} />
@@ -49,8 +47,6 @@ function App() {
           <Route path="/research-gaps" element={<ResearchGapsPage />} />
           <Route path="/immigration" element={<ImmigrationPage />} />
           <Route path="/theme-mockups" element={<ThemeMockups />} />
-          <Route path="/tree-test" element={<TreeTestPage />} />
-          <Route path="/landscape-full" element={<FullLandscapePage />} />
         </Routes>
       </ErrorBoundary>
     </Layout>
