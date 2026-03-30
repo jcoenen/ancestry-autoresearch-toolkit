@@ -2,32 +2,6 @@
 
 Shared rules and processes for all genealogy vault projects using the genealogy-toolkit. These rules are referenced by each project's CLAUDE.md and enforced by the validation scripts.
 
-## Vault Architecture
-
-Each project follows this structure:
-
-```
-{project-repo}/
-├── CLAUDE.md                  ← Project-specific instructions (references this file)
-├── HANDOVER.md                ← Session handoff notes
-├── toolkit/                   ← git submodule → genealogy-toolkit
-│   ├── site/                  ← Website (React + Vite + TypeScript + Tailwind)
-│   ├── templates/             ← Markdown templates for new files
-│   └── METHODOLOGY.md         ← This file
-├── {Family}_Genealogy/        ← The vault (single source of truth)
-│   ├── people/                ← Person files, organized by birth surname
-│   ├── sources/               ← Source documents
-│   ├── media/                 ← Images (gitignored except _Media_Index.md)
-│   ├── dna/                   ← DNA analysis
-│   ├── site-config.json       ← Per-project site configuration
-│   ├── Family_Tree.md
-│   ├── Open_Questions.md
-│   ├── Research_Log.md
-│   └── Timeline.md
-```
-
-GEDCOM, the website, and any book output are **generated artifacts** derived from the vault.
-
 ## Source File Rules (CRITICAL)
 
 Every source file in `sources/` (excluding `_Source_Index.md`) MUST have these YAML frontmatter fields:
@@ -36,13 +10,13 @@ Every source file in `sources/` (excluding `_Source_Index.md`) MUST have these Y
 
 ```yaml
 ---
-source_id: SRC-{TYPE}-{NNN}    # e.g., SRC-OBIT-024, SRC-CEM-017
-type: source                    # ALWAYS "source"
-source_type: obituary           # see allowed values below
+source_id: SRC-{TYPE}-{NNN}
+type: source
+source_type: obituary
 title: "Obituary of [Person Name]"
 date_of_document: 2000-03-28
 date_accessed: 2026-03-19
-url: "https://..."              # original source URL for re-download
+url: "https://..."
 publisher: "Newspaper Name, City State"
 persons:                        # Every genealogically relevant person: family
                                 # members, spouses, children, siblings, in-laws.
@@ -50,11 +24,11 @@ persons:                        # Every genealogically relevant person: family
                                 # funeral directors) UNLESS they are also family.
   - Person One
   - Person Two
-families:                       # surname groups mentioned
+families:
   - Surname1
   - Surname2
-reliability: high               # high, moderate, or low
-media:                          # EVERY image/scan associated with this source
+reliability: high
+media:
   - "gravestones/CEM_Surname_Given_FaG12345.jpg"
   - "newspapers/NEWS_Surname_Given_Paper_2000.jpg"
 created: 2026-03-23
@@ -62,16 +36,18 @@ tags: [genealogy, source, obituary, Surname1, Surname2]
 ---
 ```
 
+- `source_id`: format is `SRC-{TYPE}-{NNN}` (e.g., SRC-OBIT-024, SRC-CEM-017)
+- `type`: always `source`
+- `source_type`: see Allowed Values below
+- `reliability`: `high`, `moderate`, or `low`
+- `media`: list EVERY image/scan associated with this source
+
 ### Optional Frontmatter Fields
 
-```yaml
-language: "German"              # document language if not English
-translation_slug: "obit-smith-1920-english"  # slug of *_ENGLISH.md translation file
-ocr_verified: true              # false until OCR'd text manually reviewed
-memorial_id: "12345"            # FindAGrave memorial number
-```
-
-When `language` is set to a non-English value and no `translation_slug` is provided, the source appears in the "Untranslated Sources" gap on the Research Gaps page. Run `npm run translations` to scan for untranslated sources and create translation stubs.
+- `language`: document language if not English (e.g., `"German"`). When set with no `translation_slug`, the source appears in "Untranslated Sources" on the Research Gaps page. Run `npm run translations` to create translation stubs.
+- `translation_slug`: slug of the `*_ENGLISH.md` translation file
+- `ocr_verified`: `false` until OCR'd text manually reviewed (default `true`)
+- `memorial_id`: FindAGrave memorial number
 
 ### Allowed `source_type` Values
 
@@ -147,8 +123,6 @@ When a source lists someone's children, **ALL named children get person files** 
 - **Children from multiple marriages** → each child links to their biological parents; the parent's file uses `Children (1st marriage)` / `Children (2nd marriage)` field names
 
 **Do not skip children because they seem "too lateral."** Half-siblings, step-siblings, and out-of-bloodline children are one source discovery away from being genealogically critical. If the source names them, they get a file.
-
-This rule is not new — it is a specific application of "If a person is named in a source, they get a person file" (above). It is called out explicitly because agents consistently rationalize skipping children as "not in the direct bloodline."
 
 ### Confidence Rules (CRITICAL)
 
@@ -231,45 +205,26 @@ An image is only visible on the published site if it appears in **all three** of
 
 Missing any one of the three means the image will not render. After any media changes, run `npm run build:data` before checking results.
 
-## FaG Memorial Mining Protocol (CRITICAL)
+## Source Acquisition Protocol (CRITICAL)
 
-This is the standard way of working when processing a FindAGrave memorial:
+Applies to ALL web sources — FindAGrave, funeral homes, newspaper archives, historical societies, etc.
 
-1. Fetch the FaG memorial page
-2. Download ALL photos (not just gravestones)
-3. Categorize each: CEM (gravestone), POR (portrait), NEWS (newspaper clipping), DOC (document/certificate)
-4. For NEWS images: OCR immediately, combine multi-part clippings from same publication/date/page
+1. Fetch the source page and save the full text in a source file
+2. **Download ALL images** on the page — gravestones, portraits, newspaper clippings, documents, group photos
+3. Categorize and name each image per the Media Naming Convention above
+4. For NEWS images: OCR immediately; combine multi-part clippings from same publication/date/page
 5. For DOC images: OCR and extract structured data
-6. Create source file with ALL required frontmatter fields — **including `media:` listing every downloaded image path**
-   - Also add each image to the `media:` array of the **person file** for every person depicted or primarily associated with that image
-7. Mine obituary text for every named person, relationship, date, location
-8. **Update EVERY person file mentioned in the source** — add source_id to YAML sources list, update vital info fields with new data and citations, update biography. This is NOT optional.
-9. Update _Media_Index.md
+6. Create source file with ALL required frontmatter — **including `media:` listing every downloaded image path**
+7. Add each image to the `media:` array of **every depicted person's file** AND to `_Media_Index.md`
+8. List EVERY genealogically relevant person in `persons:` and mine the text for relationships, dates, locations
+9. **Create or update a person file for every person in `persons:`** — add source_id to YAML sources list, update vital info, update biography. NOT optional.
 10. Run validation — **zero orphaned sources required before commit**
 
-## Web Source Acquisition Protocol
-
-When fetching ANY source from a website (funeral home, newspaper archive, historical society, etc.):
-
-1. Save the full source text in the source file
-2. **Download ALL images** present on the page — portraits, document scans, newspaper clippings, group photos
-3. Categorize and name each image per the Media Naming Convention above
-4. Add every image to the source file's `media:` frontmatter array AND to the `media:` array of each depicted person's person file
-5. Add every image to `_Media_Index.md` with the source URL for re-download
-6. List EVERY genealogically relevant person in the `persons:` frontmatter array (see persons array definition above)
-7. **Create or update a person file for every person in the `persons:` array**
-8. Run validation — zero orphaned sources required before commit
-
-This applies to ALL web sources, not just FaG. The FaG Mining Protocol above is a specialized version of this for FindAGrave's specific page structure.
+**FindAGrave-specific:** Download ALL photos from the memorial (not just gravestones). Categorize as CEM/POR/NEWS/DOC.
 
 ## Multi-Part Newspaper Clipping Assembly
 
-When multiple photos from the same FaG memorial are from the same newspaper, same date, same page:
-- They are parts of the same article
-- OCR each separately
-- Order by content continuity (part 1 ends mid-sentence, part 2 continues)
-- Combine into single text in the source file
-- Name files with `_p1`, `_p2` suffixes
+When multiple photos are from the same newspaper/date/page: OCR each separately, order by content continuity, combine into a single text in the source file. Name files with `_p1`, `_p2` suffixes.
 
 ## OCR Quality and Manual Review
 
@@ -291,29 +246,12 @@ When multiple photos from the same FaG memorial are from the same newspaper, sam
 
 ## Change Routing (CRITICAL)
 
-This toolkit is shared across multiple genealogy projects via git submodule. Before modifying ANY file, determine where the change belongs:
+This toolkit is shared across multiple genealogy projects via git submodule.
 
-### Goes in toolkit/ (this repo)
-- Validation rules and logic
-- Build scripts (build-data.ts, validate_vault.ts)
-- Site components, pages, styles
-- Templates for person/source/etc files
-- This METHODOLOGY.md
-- upload-media.sh script
+- **toolkit/ changes** (validation, build scripts, site code, templates, METHODOLOGY.md) → commit to the toolkit repo
+- **Vault content** (person files, source files, media, site-config.json, HANDOVER.md) → commit to the project repo
 
-### Goes in the project repo
-- Person files, source files, media
-- site-config.json (family name, hero text, R2 config)
-- Project CLAUDE.md (family-specific instructions, gold standard examples)
-- HANDOVER.md
-- Research_Log.md, Open_Questions.md, Family_Tree.md
-- .env.local, credentials
-
-### Goes in global Claude memory
-- Methodology feedback (applies across all genealogy projects)
-- Tool usage patterns (Playwright for FaG, etc.)
-
-**If you're editing a file inside toolkit/ from a project repo, STOP. The toolkit is a git submodule — changes must be committed to the toolkit repo separately.**
+**If you're editing a file inside toolkit/ from a project repo, STOP. The toolkit is a submodule — changes must be committed to the toolkit repo separately.**
 
 ## Validation
 
@@ -325,13 +263,7 @@ npm run build:data   # Verify site picks up all sources
 
 ### Persons Array Resolution
 
-The validation script checks that every name in a source file's `persons:` frontmatter array can be matched to an existing person file in `people/`. Unresolved names are flagged as **warnings** with a message like:
-
-```
-sources/obituaries/SRC-OBIT-032.md: "Julie Brandt" in persons array — no matching person file found
-```
-
-This catches the most common failure mode: a source is created with a complete persons list but person files are never created for all entries. The `persons:` array is a contract — if you listed someone, they need a person file.
+Validation checks that every name in a source's `persons:` array matches an existing person file. Unresolved names are flagged as warnings. The `persons:` array is a contract — if you listed someone, they need a person file.
 
 ## R2 Media Sync
 
@@ -341,11 +273,3 @@ npm run upload-media
 ```
 
 The R2 bucket name and Cloudflare account ID are read from `site-config.json`. The `CLOUDFLARE_API_TOKEN` must be set as an env var.
-
-## Commit Rules
-
-- NEVER add `Co-Authored-By` or any AI attribution to commit messages
-- NEVER include any indication that AI wrote the code
-- Run `npm run validate` before committing — must pass with zero errors
-- Run `npm run build:data` to verify the site picks up all changes
-- Do not commit `.env`, credentials, media files, or database backups
