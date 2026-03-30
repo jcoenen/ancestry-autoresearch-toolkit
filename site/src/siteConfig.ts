@@ -28,4 +28,17 @@ export interface SiteConfig {
     r2PublicUrl: string;
     cloudflareAccountId: string;
   };
+  /** Research changelog — versions in reverse-chronological order */
+  changelog?: ChangelogEntry[];
+}
+
+export interface ChangelogEntry {
+  /** Version string, e.g. "1.5" */
+  version: string;
+  /** ISO date string, e.g. "2026-03-30" */
+  date: string;
+  /** Short title summarising the update */
+  title: string;
+  /** Bullet-point list of what was found or added */
+  items: string[];
 }

@@ -18,6 +18,7 @@ const exploreLinks = [
   { to: '/on-this-day', label: 'On This Day' },
   { to: '/immigration', label: 'Immigration Stories' },
   { to: '/research-gaps', label: 'Research Gaps' },
+  { to: '/updates', label: "What's New" },
 ]
 
 export default function Nav() {

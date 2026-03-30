@@ -17,6 +17,7 @@ import OnThisDayPage from './pages/OnThisDayPage'
 import ResearchGapsPage from './pages/ResearchGapsPage'
 import ImmigrationPage from './pages/ImmigrationPage'
 import SearchPage from './pages/SearchPage'
+import UpdatesPage from './pages/UpdatesPage'
 import VerticalTreePrototypes from './pages/VerticalTreePrototypes'
 
 function ScrollToTop() {
@@ -46,6 +47,7 @@ function App() {
           <Route path="/on-this-day" element={<OnThisDayPage />} />
           <Route path="/research-gaps" element={<ResearchGapsPage />} />
           <Route path="/immigration" element={<ImmigrationPage />} />
+          <Route path="/updates" element={<UpdatesPage />} />
           <Route path="/theme-mockups" element={<ThemeMockups />} />
         </Routes>
       </ErrorBoundary>

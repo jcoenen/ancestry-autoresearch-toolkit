@@ -186,6 +186,45 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Latest Update */}
+      {config.changelog && config.changelog.length > 0 && (() => {
+        const latest = config.changelog[0]
+        const [year, month, day] = latest.date.split('-').map(Number)
+        const dateStr = new Date(year, month - 1, day).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+        return (
+          <section className="pb-16">
+            <div className="flex items-baseline justify-between mb-4">
+              <h2 className="text-2xl font-semibold text-stone-800">Latest Update</h2>
+              <Link to="/updates" className="text-sm text-amber-700 hover:text-amber-900 font-medium hover:no-underline">
+                Full history &rarr;
+              </Link>
+            </div>
+            <div className="rounded-xl border border-stone-200 bg-white p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                  v{latest.version}
+                </span>
+                <span className="text-sm font-medium text-stone-700">{latest.title}</span>
+                <span className="text-xs text-stone-400 ml-auto">{dateStr}</span>
+              </div>
+              <ul className="space-y-1">
+                {latest.items.slice(0, 4).map((item, i) => (
+                  <li key={i} className="flex gap-2 text-sm text-stone-600">
+                    <span className="text-amber-500 shrink-0 mt-0.5">›</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              {latest.items.length > 4 && (
+                <Link to="/updates" className="block mt-3 text-xs text-amber-700 hover:text-amber-900 font-medium hover:no-underline">
+                  +{latest.items.length - 4} more &rarr;
+                </Link>
+              )}
+            </div>
+          </section>
+        )
+      })()}
+
       {/* Stats */}
       <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 pb-16">
         <StatCard label="People" value={stats.totalPeople} />
