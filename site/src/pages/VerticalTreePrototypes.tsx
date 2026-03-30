@@ -48,7 +48,7 @@ interface VNodeData {
 
 /* ── Constants ─────────────────────────────────────────────── */
 
-const VCARD_W = 190
+const VCARD_W = 220
 
 /* ── Shared: Avatar ────────────────────────────────────────── */
 
@@ -115,12 +115,12 @@ function VCard({
             <Avatar name={person.name} gender={genderMap.get(person.id) || null} />
             <div className="min-w-0 flex-1">
               {onClick ? (
-                <span className="font-semibold text-xs text-stone-800 block leading-tight truncate">
+                <span className="font-semibold text-xs text-stone-800 block leading-tight">
                   {person.name}
                 </span>
               ) : (
                 <Link to={`/people/${person.slug}`}
-                  className="font-semibold text-xs text-stone-800 hover:text-amber-700 hover:underline block leading-tight truncate">
+                  className="font-semibold text-xs text-stone-800 hover:text-amber-700 hover:underline block leading-tight">
                   {person.name}
                 </Link>
               )}
@@ -132,12 +132,12 @@ function VCard({
               <Avatar name={spouse.name} gender={genderMap.get(spouse.id) || null} />
               <div className="min-w-0 flex-1">
                 {onClick ? (
-                  <span className="text-xs text-stone-600 truncate block">
+                  <span className="text-xs text-stone-600 block">
                     {spouse.name}
                   </span>
                 ) : (
                   <Link to={`/people/${spouse.slug}`}
-                    className="text-xs text-stone-600 hover:text-amber-700 hover:underline truncate block">
+                    className="text-xs text-stone-600 hover:text-amber-700 hover:underline block">
                     {spouse.name}
                   </Link>
                 )}
@@ -486,7 +486,7 @@ function VCoupleCardNode({ data }: NodeProps<Node<VNodeData>>) {
           <Avatar name={person.name} gender={personGender} />
           <div className="min-w-0 flex-1">
             <Link to={`/people/${person.slug}`}
-              className="font-semibold text-xs text-stone-800 hover:text-amber-700 hover:underline block leading-tight truncate">
+              className="font-semibold text-xs text-stone-800 hover:text-amber-700 hover:underline block leading-tight">
               {person.name}
             </Link>
             {pYears && <div className="text-[10px] text-stone-500">{pYears}</div>}
@@ -497,7 +497,7 @@ function VCoupleCardNode({ data }: NodeProps<Node<VNodeData>>) {
             <Avatar name={spouse.name} gender={spouseGender} />
             <div className="min-w-0 flex-1">
               <Link to={`/people/${spouse.slug}`}
-                className="text-xs text-stone-600 hover:text-amber-700 hover:underline truncate block">
+                className="text-xs text-stone-600 hover:text-amber-700 hover:underline block">
                 {spouse.name}
               </Link>
               {sYears && <div className="text-[10px] text-stone-500">{sYears}</div>}
