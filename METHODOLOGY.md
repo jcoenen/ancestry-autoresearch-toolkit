@@ -222,6 +222,15 @@ Images are stored locally in `media/` (gitignored). Source URLs are tracked in `
 Every table row must have all 5 columns filled:
 | Local Path | Person | Source URL | Date Downloaded | Description |
 
+### Linking (CRITICAL) — Images require THREE entries to appear on the site
+
+An image is only visible on the published site if it appears in **all three** of:
+1. The **source file** `media:` frontmatter array (the source the image came from)
+2. The **person file** `media:` frontmatter array (for every person depicted or primarily associated with the image)
+3. `_Media_Index.md` (the global manifest with source URL for re-download)
+
+Missing any one of the three means the image will not render. After any media changes, run `npm run build:data` before checking results.
+
 ## FaG Memorial Mining Protocol (CRITICAL)
 
 This is the standard way of working when processing a FindAGrave memorial:
@@ -232,6 +241,7 @@ This is the standard way of working when processing a FindAGrave memorial:
 4. For NEWS images: OCR immediately, combine multi-part clippings from same publication/date/page
 5. For DOC images: OCR and extract structured data
 6. Create source file with ALL required frontmatter fields — **including `media:` listing every downloaded image path**
+   - Also add each image to the `media:` array of the **person file** for every person depicted or primarily associated with that image
 7. Mine obituary text for every named person, relationship, date, location
 8. **Update EVERY person file mentioned in the source** — add source_id to YAML sources list, update vital info fields with new data and citations, update biography. This is NOT optional.
 9. Update _Media_Index.md
@@ -244,7 +254,7 @@ When fetching ANY source from a website (funeral home, newspaper archive, histor
 1. Save the full source text in the source file
 2. **Download ALL images** present on the page — portraits, document scans, newspaper clippings, group photos
 3. Categorize and name each image per the Media Naming Convention above
-4. Add every image to the source file's `media:` frontmatter array
+4. Add every image to the source file's `media:` frontmatter array AND to the `media:` array of each depicted person's person file
 5. Add every image to `_Media_Index.md` with the source URL for re-download
 6. List EVERY genealogically relevant person in the `persons:` frontmatter array (see persons array definition above)
 7. **Create or update a person file for every person in the `persons:` array**
