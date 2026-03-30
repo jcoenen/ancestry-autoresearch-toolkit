@@ -2,6 +2,19 @@
 
 ## What Was Done
 
+### Session 15: METHODOLOGY.md Token Optimization
+
+Reduced METHODOLOGY.md from 352 → 275 lines (~22%) to cut per-session token costs. Changes:
+
+- Removed Vault Architecture directory tree (discoverable from filesystem)
+- Merged FaG Memorial Mining Protocol + Web Source Acquisition Protocol into single "Source Acquisition Protocol" with FaG-specific note
+- Moved YAML inline comments to prose list below the code block (kept `persons:` comment — agents get that wrong)
+- Compressed Change Routing from 25-line table to 5-line summary
+- Compressed Persons Array Resolution and Multi-Part Clipping Assembly sections
+- Removed duplicate Commit Rules (already in global CLAUDE.md)
+- Removed Family Unit Completeness meta-commentary paragraph
+- **Preserved intact:** Confidence Rules emphasis paragraphs, Vital Information field name table, all CRITICAL-tagged rules
+
 ### Session 14: Media Linking Rule Documented
 
 An agent using the toolkit repeatedly linked images only in source files, missing the person file `media:` array, causing images not to render on the site. Added the rule explicitly to METHODOLOGY.md in three places:
@@ -113,6 +126,7 @@ Pure CSS vertical tree connectors:
 
 ## Commits
 
+- `3989f29` — Reduce METHODOLOGY.md token footprint by 22%
 - `2af72e6` — Add GitHub project link to site footer
 - `ac1f12a` — Add methodology safeguards and validation for person file completeness
 - `b432f8d` — Widen tree cards and allow name wrapping to prevent truncation
