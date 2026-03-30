@@ -67,7 +67,7 @@ function Avatar({ name, gender, size = 'sm' }: { name: string; gender: 'M' | 'F'
 /* ── Shared: Compact card for vertical trees ───────────────── */
 
 function VCard({
-  person, spouse, genderMap, isFocus, canExpand, onExpand, onClick, width,
+  person, spouse, genderMap, isFocus, canExpand, onExpand, onClick, width, childrenList,
 }: {
   person: Person | null
   spouse?: Person | null
@@ -77,7 +77,10 @@ function VCard({
   onExpand?: () => void
   onClick?: () => void
   width?: number
+  childrenList?: Person[]
 }) {
+  const [showChildren, setShowChildren] = useState(false)
+
   if (!person) {
     return (
       <div className="rounded-lg border-2 border-dashed border-stone-200 bg-stone-50/50 flex items-center justify-center"
@@ -96,8 +99,6 @@ function VCard({
           isFocus ? 'border-2 border-amber-400 ring-2 ring-amber-100' : 'border-stone-200'
         } ${onClick ? 'cursor-pointer hover:border-amber-300 active:bg-stone-50' : ''}`}
         style={{ width: width ?? VCARD_W }}
-        onClick={onClick}
-        role={onClick ? 'button' : undefined}
       >
         {/* Small profile link icon in corner when card is clickable for navigation */}
         {onClick && person.slug && (
@@ -109,7 +110,7 @@ function VCard({
             </svg>
           </Link>
         )}
-        <div className="p-2">
+        <div className="p-2" onClick={onClick} role={onClick ? 'button' : undefined}>
           <div className="flex items-center gap-1.5">
             <Avatar name={person.name} gender={genderMap.get(person.id) || null} />
             <div className="min-w-0 flex-1">
@@ -144,6 +145,41 @@ function VCard({
             </div>
           )}
         </div>
+        {childrenList && childrenList.length > 0 && (
+          <div className="border-t border-stone-100">
+            <button onClick={(e) => { e.stopPropagation(); setShowChildren(prev => !prev) }}
+              className="w-full flex items-center justify-between px-2 py-1 text-[11px] text-stone-500 font-medium hover:bg-stone-50 transition-colors">
+              <span>Children ({childrenList.length})</span>
+              <svg className={`w-3.5 h-3.5 text-stone-400 transition-transform ${showChildren ? 'rotate-180' : ''}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showChildren && (
+              <div className="px-2 pb-1.5">
+                {childrenList.map((child, i) => {
+                  const cYears = child.privacy ? '' : `${formatYear(child.born)}\u2013${formatYear(child.died)}`
+                  return (
+                    <div key={child.id} className="flex items-center gap-1.5 py-0.5">
+                      <span className="text-stone-300 text-[10px] w-3 text-center shrink-0">
+                        {i === childrenList.length - 1 ? '\u2514' : '\u251C'}
+                      </span>
+                      {child.slug ? (
+                        <Link to={`/people/${child.slug}`}
+                          className="text-[11px] text-stone-700 hover:text-amber-700 hover:underline truncate">
+                          {child.name}
+                        </Link>
+                      ) : (
+                        <span className="text-[11px] text-stone-500 truncate">{child.name}</span>
+                      )}
+                      {cYears && <span className="text-[10px] text-stone-400 shrink-0">{cYears}</span>}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {canExpand && onExpand && (
         <button onClick={onExpand}
@@ -216,6 +252,14 @@ function VExpandingBranch({
   const primary = father || mother!
   const spouse = father && mother ? mother : null
 
+  const coupleChildren = people
+    .filter(p => {
+      if (father && mother) return p.father === father.id || p.mother === mother.id
+      if (father) return p.father === father.id
+      return p.mother === primary.id
+    })
+    .sort((a, b) => (a.born || '').localeCompare(b.born || ''))
+
   const hasFP = !!(father?.father || father?.mother)
   const hasMP = !!(mother?.father || mother?.mother)
   const isExp = expanded.has(primary.id)
@@ -224,6 +268,7 @@ function VExpandingBranch({
   return (
     <div className="flex flex-col items-center">
       <VCard person={primary} spouse={spouse} genderMap={genderMap}
+        childrenList={coupleChildren}
         canExpand={canExp} onExpand={canExp ? () => onToggle(primary.id) : undefined} />
       {isExp && (hasFP || hasMP) && (
         <>
@@ -273,10 +318,17 @@ export function VerticalExpandingTree({ focusId, people, genderMap, initialExpan
   const hasFP = !!(focus.father || focus.mother)
   const hasSP = !!(spouse?.father || spouse?.mother)
 
+  const focusChildren = people
+    .filter(p => p.father === focus.id || p.mother === focus.id ||
+      (spouse && (p.father === spouse.id || p.mother === spouse.id)))
+    .filter(p => p.id !== focus.id)
+    .sort((a, b) => (a.born || '').localeCompare(b.born || ''))
+
   return (
     <div className="overflow-x-auto pb-8">
       <div className="flex flex-col items-center min-w-max py-4 px-4">
-        <VCard person={focus} spouse={spouse} genderMap={genderMap} isFocus />
+        <VCard person={focus} spouse={spouse} genderMap={genderMap} isFocus
+          childrenList={focusChildren} />
 
         {(hasFP || hasSP) && (
           <>
@@ -744,7 +796,8 @@ function PersonSelector({ people, genderMap, currentId, onSelect }: {
   React.useEffect(() => {
     if (!open) return
     function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target
+      if (containerRef.current && target instanceof Node && !containerRef.current.contains(target)) {
         setOpen(false)
         setQuery('')
       }

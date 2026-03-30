@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import Fuse from 'fuse.js'
+import Fuse, { type FuseResultMatch } from 'fuse.js'
 import { useData, formatYear } from './useData'
 
 export type SearchResultType = 'person' | 'source'
@@ -25,7 +25,7 @@ export interface SearchDocument {
 export interface SearchResult {
   item: SearchDocument
   score: number
-  matches: readonly Fuse.FuseResultMatch[]
+  matches: readonly FuseResultMatch[]
 }
 
 export interface GroupedSearchResults {
@@ -143,7 +143,7 @@ const FIELD_LABELS: Record<string, string> = {
   searchExtractedFacts: 'Extracted Facts',
 }
 
-export function getSnippet(matches: readonly Fuse.FuseResultMatch[]): { field: string; before: string; match: string; after: string } | null {
+export function getSnippet(matches: readonly FuseResultMatch[]): { field: string; before: string; match: string; after: string } | null {
   if (!matches.length) return null
 
   // Prefer matches in content-heavy fields for better snippets
@@ -171,7 +171,7 @@ export function getSnippet(matches: readonly Fuse.FuseResultMatch[]): { field: s
   return buildSnippet(best)
 }
 
-function buildSnippet(match: Fuse.FuseResultMatch): { field: string; before: string; match: string; after: string } {
+function buildSnippet(match: FuseResultMatch): { field: string; before: string; match: string; after: string } {
   const value = match.value || ''
   const [start, end] = match.indices[0]
   const contextStart = Math.max(0, start - 50)
