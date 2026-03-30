@@ -2,6 +2,29 @@
 
 ## What Was Done
 
+### Session 11: TypeScript Fixes, Expanding Children, Pre-commit Hook
+
+#### TypeScript Fixes
+- Fixed `Fuse.FuseResultMatch` namespace import in `useSearch.ts` — changed to named import `FuseResultMatch` from `fuse.js` (lines 28, 146, 174)
+- Fixed unsafe `e.target as Node` cast in `VerticalTreePrototypes.tsx` — replaced with `target instanceof Node` type guard
+
+#### Expanding Children Restored
+Added collapsible "Children (N)" accordion section to VCard in the Ancestors tree view:
+- Collapsed by default, click to expand list with tree connectors
+- Each child links to their profile page
+- Works on both the focus card and all ancestor couple cards
+- Resolves children from both father/mother back-links in the data
+
+#### Card Width Fix
+- Widened VCard from 190px to 220px
+- Removed `truncate` CSS from name elements so long names wrap instead of being cut off with "..."
+- Applied to both VCard (Ancestors view) and VCoupleCardNode (Full Pedigree dagre view)
+
+#### Pre-commit Hook
+- Added `.git/hooks/pre-commit` that runs `tsc --noEmit` before every commit
+- Blocks commits with TypeScript errors
+- Note: lives in `.git/hooks/` (not tracked by git), local to this machine only
+
 ### Session 10: Vertical Tree Redesign
 
 Replaced the entire family tree page with a new vertical tree system. The old horizontal landscape/pedigree/descendant views are gone (still in git history at `528a1d6~1`).
@@ -29,7 +52,7 @@ Searchable dropdown in the page header for picking the focus person:
 
 #### Card Design
 
-Compact `VCard` component (190px default) with:
+Compact `VCard` component (220px default) with:
 - Gender-colored avatar circles (blue/pink)
 - Name + birth-death years
 - Spouse shown below divider when present
@@ -61,6 +84,8 @@ Pure CSS vertical tree connectors:
 
 ## Commits
 
+- `b432f8d` — Widen tree cards and allow name wrapping to prevent truncation
+- `1b6d610` — Fix TypeScript errors and restore expandable children in ancestor tree
 - `528a1d6` — Replace horizontal tree views with vertical tree system
 
 ## Previous Sessions
