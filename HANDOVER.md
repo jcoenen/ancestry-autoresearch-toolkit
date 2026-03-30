@@ -2,6 +2,21 @@
 
 ## What Was Done
 
+### Session 12: Methodology Hardening & Persons Array Validation
+
+Driven by real-world agent testing that exposed gaps — an agent skipped 7 of 9 children as "too lateral" and missed a portrait from a funeral home page.
+
+#### METHODOLOGY.md Changes
+1. **`persons:` array definition tightened** — Changed from "EVERY person named in the document" to "every genealogically relevant person" with explicit exclusions for incidental names (officiants, pallbearers). Makes the array an enforceable contract.
+2. **Family Unit Completeness rule (CRITICAL)** — New subsection explicitly requiring ALL named children get person files with parent wikilinks. Covers biological, step, and multi-marriage children. Called out as the #1 thing agents skip.
+3. **Web Source Acquisition Protocol** — New section covering all non-FaG web sources (funeral homes, newspaper archives, historical societies). Requires downloading all images, not just text.
+4. **Persons Array Resolution docs** — Documents the new validation check.
+
+#### Validation Script Changes (`validate_vault.ts`)
+- New "Persons Array Resolution" check: cross-references every name in every source's `persons:` array against existing person files (case-insensitive match on `name` field)
+- Unmatched names flagged as **warnings** (visible but non-blocking)
+- Catches the failure mode where a source lists 30 people but only 5 get person files
+
 ### Session 11: TypeScript Fixes, Expanding Children, Pre-commit Hook
 
 #### TypeScript Fixes
@@ -84,6 +99,7 @@ Pure CSS vertical tree connectors:
 
 ## Commits
 
+- `ac1f12a` — Add methodology safeguards and validation for person file completeness
 - `b432f8d` — Widen tree cards and allow name wrapping to prevent truncation
 - `1b6d610` — Fix TypeScript errors and restore expandable children in ancestor tree
 - `528a1d6` — Replace horizontal tree views with vertical tree system
