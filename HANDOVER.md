@@ -2,6 +2,10 @@
 
 ## What Was Done
 
+### Session 13: Footer GitHub Link
+
+Added a link to the GitHub project (`jcoenen/ancestry-autoresearch-toolkit`) in the site footer so visitors can find and use the toolkit themselves. Shows as "Built with ancestry-autoresearch-toolkit" below the researcher credit line.
+
 ### Session 12: Methodology Hardening & Persons Array Validation
 
 Driven by real-world agent testing that exposed gaps — an agent skipped 7 of 9 children as "too lateral" and missed a portrait from a funeral home page.
@@ -99,6 +103,7 @@ Pure CSS vertical tree connectors:
 
 ## Commits
 
+- `2af72e6` — Add GitHub project link to site footer
 - `ac1f12a` — Add methodology safeguards and validation for person file completeness
 - `b432f8d` — Widen tree cards and allow name wrapping to prevent truncation
 - `1b6d610` — Fix TypeScript errors and restore expandable children in ancestor tree
