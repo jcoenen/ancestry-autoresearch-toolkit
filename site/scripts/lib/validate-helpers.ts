@@ -15,7 +15,7 @@ export const ALLOWED_SOURCE_TYPES = [
   'certificate',
 ];
 
-export const ALLOWED_CONFIDENCE = ['high', 'moderate', 'low', 'stub'];
+export const ALLOWED_CONFIDENCE = ['high', 'moderate', 'low', 'stub', 'speculative'];
 export const ALLOWED_RELIABILITY = ['high', 'moderate', 'low'];
 
 export const SOURCE_ID_PATTERN = /^SRC-(OBIT|CEM|CHR|SEC|IMM|MIL|CENS|NOTE|CERT)-\d{3}$/;
