@@ -1,6 +1,9 @@
+import { useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useSourceBySlug, useData, usePersonByName, MEDIA_BASE } from '../useData'
 import type { MediaEntry } from '../types'
+import { useLightbox } from '../hooks/useLightbox'
+import Lightbox from '../components/Lightbox'
 
 function PersonMention({ name }: { name: string }) {
   const person = usePersonByName(name)
@@ -39,6 +42,14 @@ export default function SourceDetailPage() {
 
   // Media explicitly linked to this source via its YAML media: field
   const sourceMedia = source.media || []
+  const imageMedia = useMemo(() =>
+    sourceMedia.filter(m => {
+      const ext = m.path.split('.').pop()?.toLowerCase() || ''
+      return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)
+    }),
+    [sourceMedia]
+  )
+  const mediaLightbox = useLightbox(imageMedia)
 
   // Find people in the vault that cite this source
   const citingPeople = people.filter(p => p.sources.includes(source.id))
@@ -139,50 +150,57 @@ export default function SourceDetailPage() {
         <section className="mb-6">
           <h2 className="text-xl font-semibold text-stone-800 mb-3">Media ({sourceMedia.length})</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {sourceMedia.map((m, i) => {
-              const ext = m.path.split('.').pop()?.toLowerCase() || ''
-              const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)
-              const isDoc = ['pdf', 'html', 'htm', 'md', 'txt'].includes(ext)
-              const docIcon = ext === 'pdf' ? 'PDF' : ext === 'html' || ext === 'htm' ? 'HTML' : ext.toUpperCase()
+            {(() => {
+              let imageIndex = 0
+              return sourceMedia.map((m, i) => {
+                const ext = m.path.split('.').pop()?.toLowerCase() || ''
+                const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)
+                const isDoc = ['pdf', 'html', 'htm', 'md', 'txt'].includes(ext)
+                const docIcon = ext === 'pdf' ? 'PDF' : ext === 'html' || ext === 'htm' ? 'HTML' : ext.toUpperCase()
+                const currentImageIndex = isImage ? imageIndex++ : -1
 
-              return (
-                <div key={i} className="rounded-lg border border-stone-200 bg-white overflow-hidden hover:border-amber-300 hover:shadow-sm transition-all">
-                  <a href={`${MEDIA_BASE}${m.path}`} target="_blank" rel="noopener noreferrer">
+                return (
+                  <div key={i} className="rounded-lg border border-stone-200 bg-white overflow-hidden hover:border-amber-300 hover:shadow-sm transition-all">
                     {isImage ? (
-                      <img
-                        src={`${MEDIA_BASE}${m.path}`}
-                        alt={m.description}
-                        className="w-full object-cover bg-stone-100 cursor-zoom-in"
-                        loading="lazy"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement
-                          target.alt = m.description
-                          target.className = 'w-full aspect-square bg-stone-100 flex items-center justify-center text-stone-400 text-xs p-4'
-                        }}
-                      />
+                      <button onClick={() => mediaLightbox.open(currentImageIndex)} className="w-full">
+                        <img
+                          src={`${MEDIA_BASE}${m.path}`}
+                          alt={m.description}
+                          className="w-full object-cover bg-stone-100 cursor-zoom-in"
+                          loading="lazy"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement
+                            target.alt = m.description
+                            target.className = 'w-full aspect-square bg-stone-100 flex items-center justify-center text-stone-400 text-xs p-4'
+                          }}
+                        />
+                      </button>
                     ) : (
-                      <div className="w-full aspect-[4/3] bg-stone-50 flex flex-col items-center justify-center gap-2">
-                        <div className="w-12 h-14 rounded border-2 border-stone-300 flex items-center justify-center">
-                          <span className="text-xs font-bold text-stone-500">{docIcon}</span>
+                      <a href={`${MEDIA_BASE}${m.path}`} target="_blank" rel="noopener noreferrer">
+                        <div className="w-full aspect-[4/3] bg-stone-50 flex flex-col items-center justify-center gap-2">
+                          <div className="w-12 h-14 rounded border-2 border-stone-300 flex items-center justify-center">
+                            <span className="text-xs font-bold text-stone-500">{docIcon}</span>
+                          </div>
+                          <span className="text-xs text-amber-700 font-medium">Open {docIcon} ↗</span>
                         </div>
-                        <span className="text-xs text-amber-700 font-medium">Open {docIcon} ↗</span>
-                      </div>
-                    )}
-                  </a>
-                  <div className="p-2">
-                    <div className="text-xs text-stone-700">{m.description}</div>
-                    <div className="text-xs text-stone-400 mt-0.5">{m.type}</div>
-                    {m.sourceUrl && (
-                      <a href={m.sourceUrl} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-amber-600 hover:text-amber-800 mt-1 block truncate">
-                        Source ↗
                       </a>
                     )}
+                    <div className="p-2">
+                      <div className="text-xs text-stone-700">{m.description}</div>
+                      <div className="text-xs text-stone-400 mt-0.5">{m.type}</div>
+                      {m.sourceUrl && (
+                        <a href={m.sourceUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-amber-600 hover:text-amber-800 mt-1 block truncate">
+                          Source ↗
+                        </a>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })
+            })()}
           </div>
+          <Lightbox {...mediaLightbox.lightboxProps} />
         </section>
       )}
 

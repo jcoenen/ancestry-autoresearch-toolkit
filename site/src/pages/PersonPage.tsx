@@ -2,6 +2,8 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { usePersonBySlug, usePersonById, useData, usePeople, formatYear, confidenceColor, getSourceSlugById, MEDIA_BASE } from '../useData'
 import type { Person, ChildRef, SpouseRef } from '../types'
+import { useLightbox } from '../hooks/useLightbox'
+import Lightbox from '../components/Lightbox'
 import { buildGenderMap } from './VerticalTreePrototypes'
 import { findRelationship } from '../relationshipCalculator'
 import type { RelationshipResult } from '../relationshipCalculator'
@@ -444,6 +446,7 @@ export default function PersonPage() {
 
   const personSources = sources.filter(s => person.sources.includes(s.id))
   const personMedia = person.media
+  const mediaLightbox = useLightbox(personMedia)
 
   const years = person.privacy
     ? ''
@@ -627,7 +630,7 @@ export default function PersonPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {personMedia.map((m, i) => (
               <div key={i} className="rounded-lg border border-stone-200 bg-white overflow-hidden hover:border-amber-300 hover:shadow-sm transition-all">
-                <a href={`${MEDIA_BASE}${m.path}`} target="_blank" rel="noopener noreferrer">
+                <button onClick={() => mediaLightbox.open(i)} className="w-full">
                   <img
                     src={`${MEDIA_BASE}${m.path}`}
                     alt={m.description}
@@ -639,7 +642,7 @@ export default function PersonPage() {
                       target.className = 'w-full aspect-square bg-stone-100 flex items-center justify-center text-stone-400 text-xs p-4'
                     }}
                   />
-                </a>
+                </button>
                 <div className="p-2">
                   <div className="text-xs text-stone-700">{m.description}</div>
                   <div className="text-xs text-stone-400 mt-0.5">{m.type}</div>
@@ -653,6 +656,7 @@ export default function PersonPage() {
               </div>
             ))}
           </div>
+          <Lightbox {...mediaLightbox.lightboxProps} />
         </section>
       )}
 

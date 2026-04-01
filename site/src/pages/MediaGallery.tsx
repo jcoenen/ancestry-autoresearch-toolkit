@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useData, usePeople, MEDIA_BASE } from '../useData'
 import FamilyFilterDropdown from '../components/FamilyFilterDropdown'
+import { useLightbox } from '../hooks/useLightbox'
+import Lightbox from '../components/Lightbox'
 
 const TYPE_LABELS: Record<string, string> = {
   gravestone: 'Gravestones',
@@ -62,6 +64,8 @@ export default function MediaGallery() {
     return result
   }, [media, typeFilter, familyFilter, mediaFamilyMap])
 
+  const lightbox = useLightbox(filtered)
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <h1 className="text-3xl font-bold text-stone-800">Media Gallery</h1>
@@ -114,7 +118,7 @@ export default function MediaGallery() {
               key={i}
               className="rounded-lg border border-stone-200 bg-white overflow-hidden group hover:border-amber-300 hover:shadow-sm transition-all"
             >
-              <a href={`${MEDIA_BASE}${m.path}`} target="_blank" rel="noopener noreferrer">
+              <button onClick={() => lightbox.open(i)} className="w-full">
                 <img
                   src={`${MEDIA_BASE}${m.path}`}
                   alt={m.description}
@@ -126,7 +130,7 @@ export default function MediaGallery() {
                     target.className = 'w-full aspect-square bg-stone-100 flex items-center justify-center text-stone-400 text-xs p-4'
                   }}
                 />
-              </a>
+              </button>
               <div className="p-3">
                 <div className="text-sm font-medium text-stone-800 leading-tight">{m.person}</div>
                 <div className="text-xs text-stone-500 mt-1">{m.description}</div>
@@ -149,6 +153,7 @@ export default function MediaGallery() {
           ))}
         </div>
       )}
+      <Lightbox {...lightbox.lightboxProps} />
     </div>
   )
 }
