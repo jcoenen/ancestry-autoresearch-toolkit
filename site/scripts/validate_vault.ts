@@ -296,9 +296,13 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
         }
       }
 
-      // Warn if zero sources
+      // Error if zero sources (unless confidence is speculative)
       if (fm.sources.length === 0) {
-        result.warnings.push(`people/${file}: 0 sources cited`);
+        if (fm.confidence === 'speculative') {
+          result.warnings.push(`people/${file}: 0 sources cited (speculative — acceptable)`);
+        } else {
+          result.errors.push(`people/${file}: 0 sources cited — add at least one source or set confidence: speculative`);
+        }
       }
     }
 
@@ -322,8 +326,8 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
     const vitalTable = parseVitalTable(content);
     for (const [field] of vitalTable) {
       if (!isRecognizedVitalField(field)) {
-        result.warnings.push(
-          `people/${file}: non-standard Vital Information field "${field}" — site build may not parse this. See CLAUDE.md for allowed field names.`
+        result.errors.push(
+          `people/${file}: non-standard Vital Information field "${field}" — site build will not parse this. Use a recognized field name (see METHODOLOGY.md).`
         );
       }
     }
