@@ -1,6 +1,28 @@
-# Handover — 2026-03-30
+# Handover — 2026-04-01
 
 ## What Was Done
+
+### Session 16: Gallery Lightbox with Swipe Navigation
+
+Replaced the new-tab image viewing pattern with an in-page lightbox overlay. Previously, clicking any gallery image opened it in a new browser tab — on mobile, navigating back always reset scroll to the top, making it painful to browse through many images.
+
+**New files:**
+- `site/src/hooks/useSwipe.ts` — Touch swipe detection hook (left/right, 50px threshold)
+- `site/src/hooks/useLightbox.ts` — State management: open/close/prev/next, iOS-safe scroll lock
+- `site/src/components/Lightbox.tsx` — Full-screen overlay via React portal with keyboard nav, mobile swipe, metadata bar, adjacent image preloading
+
+**Modified pages (all 3 that display images):**
+- `MediaGallery.tsx` — Lightbox operates on the filtered image set (respects type/family filters)
+- `PersonPage.tsx` — Lightbox on person's media section
+- `SourceDetailPage.tsx` — Lightbox for images only; PDFs/documents still open in new tab
+
+**Features:** Arrow key navigation, Escape to close, click backdrop to close, swipe left/right on mobile, loading spinner, "Open original" link, image counter, person/description/type metadata bar. Zero new dependencies — built with React + Tailwind only.
+
+Also generated sample `site-data.json` + placeholder images in `media/sample/` for local testing (both gitignored).
+
+Commit: `4dc0315`
+
+**Pre-existing test failures:** 5 tests in `validate-helpers.test.ts` fail due to `person.childIds` not being iterable — unrelated to this change, present on clean master.
 
 ### Session 15: METHODOLOGY.md Token Optimization
 
