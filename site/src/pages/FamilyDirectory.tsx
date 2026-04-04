@@ -7,7 +7,8 @@ export default function FamilyDirectory() {
   const people = usePeople()
   const [searchParams] = useSearchParams()
   const initialFamily = searchParams.get('family') || ''
-  const [search, setSearch] = useState('')
+  const initialSearch = searchParams.get('search') || ''
+  const [search, setSearch] = useState(initialSearch)
   const [familyFilter, setFamilyFilter] = useState<Set<string>>(
     initialFamily ? new Set([initialFamily]) : new Set()
   )

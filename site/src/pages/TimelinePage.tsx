@@ -11,7 +11,7 @@ interface TimelineEvent {
   personId: string
   personName: string
   personSlug: string
-  type: 'birth' | 'death' | 'marriage'
+  type: 'birth' | 'death' | 'marriage' | 'immigration' | 'military'
   year: number
   dateStr: string
   approximate: boolean
@@ -22,9 +22,11 @@ const EVENT_COLORS = {
   birth: { dot: 'bg-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
   death: { dot: 'bg-red-500', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
   marriage: { dot: 'bg-purple-500', bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+  immigration: { dot: 'bg-amber-500', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
+  military: { dot: 'bg-slate-500', bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200' },
 }
 
-const EVENT_LABELS = { birth: 'Born', death: 'Died', marriage: 'Married' }
+const EVENT_LABELS = { birth: 'Born', death: 'Died', marriage: 'Married', immigration: 'Immigration', military: 'Military' }
 
 /* ── Extract events from people data ─────────────────────────── */
 
@@ -85,6 +87,36 @@ function extractEvents(people: Person[]): TimelineEvent[] {
         })
       }
     }
+
+    const immYear = extractYear(p.immigration)
+    if (immYear) {
+      events.push({
+        id: `${p.id}-immigration`,
+        personId: p.id,
+        personName: p.name,
+        personSlug: p.slug,
+        type: 'immigration',
+        year: immYear,
+        dateStr: p.immigration,
+        approximate: false,
+        family: p.family,
+      })
+    }
+
+    const milYear = extractYear(p.military)
+    if (milYear) {
+      events.push({
+        id: `${p.id}-military`,
+        personId: p.id,
+        personName: p.name,
+        personSlug: p.slug,
+        type: 'military',
+        year: milYear,
+        dateStr: p.military,
+        approximate: false,
+        family: p.family,
+      })
+    }
   }
 
   events.sort((a, b) => a.year - b.year || a.type.localeCompare(b.type))
@@ -141,7 +173,7 @@ export default function TimelinePage() {
   const allEvents = useMemo(() => extractEvents(people), [people])
 
   // Filters
-  const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set(['birth', 'death', 'marriage']))
+  const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set(['birth', 'death', 'marriage', 'immigration', 'military']))
   const [familyFilter, setFamilyFilter] = useState<Set<string>>(new Set())
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
 
@@ -185,7 +217,7 @@ export default function TimelinePage() {
 
   // Counts per type
   const counts = useMemo(() => {
-    const c = { birth: 0, death: 0, marriage: 0 }
+    const c = { birth: 0, death: 0, marriage: 0, immigration: 0, military: 0 }
     for (const e of filtered) c[e.type]++
     return c
   }, [filtered])
@@ -200,8 +232,8 @@ export default function TimelinePage() {
       {/* Filters */}
       <div className="mb-8 space-y-3">
         {/* Event type toggles */}
-        <div className="flex gap-2">
-          {(['birth', 'death', 'marriage'] as const).map(type => {
+        <div className="flex flex-wrap gap-2">
+          {(['birth', 'death', 'marriage', 'immigration', 'military'] as const).map(type => {
             const active = typeFilter.has(type)
             const colors = EVENT_COLORS[type]
             return (

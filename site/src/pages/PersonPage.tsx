@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { usePersonBySlug, usePersonById, useData, usePeople, formatYear, confidenceColor, getSourceSlugById, MEDIA_BASE } from '../useData'
+import { usePersonBySlug, usePersonById, useData, usePeople, formatYear, confidenceColor, getSourceSlugById, MEDIA_BASE, extractYear } from '../useData'
 import type { Person, ChildRef, SpouseRef } from '../types'
 import { useLightbox } from '../hooks/useLightbox'
 import Lightbox from '../components/Lightbox'
@@ -287,6 +287,134 @@ function MarkdownSection({ content }: { content: string }) {
   return <>{elements}</>
 }
 
+/* ── Data Completeness Card ─────────────────────────────────── */
+
+function isMissingValue(v: string | undefined | null): boolean {
+  if (!v) return true
+  const s = v.trim()
+  return s === '' || s === '—' || s === '-' || s === 'Unknown'
+}
+
+function CompletenessCard({ person, sourceCount }: { person: Person; sourceCount: number }) {
+  const fields = [
+    { label: 'Birth date', ok: !!extractYear(person.born) },
+    { label: 'Birthplace', ok: !isMissingValue(person.birthplace) },
+    { label: 'Death date', ok: !!extractYear(person.died) },
+    { label: 'Father', ok: !!(person.father || person.fatherName) },
+    { label: 'Mother', ok: !!(person.mother || person.motherName) },
+    { label: 'Sources', ok: sourceCount > 0 },
+    { label: 'Biography', ok: !!(person.biography && person.biography.trim()) },
+  ]
+  const filled = fields.filter(f => f.ok).length
+  if (filled === fields.length) return null
+  const pct = Math.round((filled / fields.length) * 100)
+  return (
+    <section className="mb-6 print-hide">
+      <div className="rounded-lg border border-stone-200 bg-white p-4">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-semibold text-stone-400 uppercase tracking-wide">Data Completeness</span>
+          <span className="text-sm font-bold text-stone-600">{pct}%</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {fields.map(f => (
+            <span key={f.label} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+              f.ok
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-red-50 text-red-600 border-red-200'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${f.ok ? 'bg-emerald-500' : 'bg-red-400'}`} />
+              {f.label}
+            </span>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ── Mini Family Tree ────────────────────────────────────────── */
+
+function MiniPersonChip({ person, name, role, color }: {
+  person?: Person | null
+  name: string
+  role: string
+  color?: 'blue' | 'pink'
+}) {
+  const cls = color === 'blue'
+    ? 'bg-blue-50 border-blue-200 text-blue-800'
+    : color === 'pink'
+    ? 'bg-pink-50 border-pink-200 text-pink-800'
+    : 'bg-stone-50 border-stone-200 text-stone-700'
+  const inner = (
+    <div className={`px-2.5 py-1.5 rounded-md border text-xs min-w-[80px] max-w-[140px] ${cls}`}>
+      <div className="text-[10px] font-medium opacity-60 uppercase tracking-wide">{role}</div>
+      <div className="font-medium truncate">{name}</div>
+    </div>
+  )
+  if (person) {
+    return <Link to={`/people/${person.slug}`} className="hover:no-underline hover:opacity-75 transition-opacity">{inner}</Link>
+  }
+  return inner
+}
+
+function MiniTree({ person }: { person: Person }) {
+  const allPeople = usePeople()
+  const father = person.father ? allPeople.find(p => p.id === person.father) ?? null : null
+  const mother = person.mother ? allPeople.find(p => p.id === person.mother) ?? null : null
+  const children = person.children
+    .map(c => c.id ? allPeople.find(p => p.id === c.id) ?? null : null)
+    .filter((p): p is Person => p !== null)
+
+  const hasParents = !!(father || person.fatherName || mother || person.motherName)
+  const MAX_SHOWN = 5
+  const shownChildren = children.slice(0, MAX_SHOWN)
+  const extraChildren = children.length - MAX_SHOWN
+
+  if (!hasParents && children.length === 0) return null
+
+  return (
+    <section className="mb-6 print-hide">
+      <div className="rounded-lg border border-stone-200 bg-white p-4">
+        <span className="text-xs font-semibold text-stone-400 uppercase tracking-wide">Family at a Glance</span>
+        <div className="mt-3 flex flex-col items-center gap-0">
+          {/* Parents row */}
+          {hasParents && (
+            <div className="flex flex-wrap gap-2 justify-center">
+              {(father || person.fatherName) && (
+                <MiniPersonChip person={father} name={father?.name || person.fatherName || 'Unknown'} role="Father" color="blue" />
+              )}
+              {(mother || person.motherName) && (
+                <MiniPersonChip person={mother} name={mother?.name || person.motherName || 'Unknown'} role="Mother" color="pink" />
+              )}
+            </div>
+          )}
+          {/* Connector */}
+          {hasParents && <div className="w-px h-4 bg-stone-300 my-0.5" />}
+          {/* Person */}
+          <div className="px-4 py-2 rounded-lg bg-amber-50 border-2 border-amber-300 text-sm font-semibold text-amber-800">
+            {person.name}
+          </div>
+          {/* Connector */}
+          {children.length > 0 && <div className="w-px h-4 bg-stone-300 my-0.5" />}
+          {/* Children row */}
+          {children.length > 0 && (
+            <div className="flex flex-wrap gap-2 justify-center">
+              {shownChildren.map(child => (
+                <MiniPersonChip key={child.id} person={child} name={child.name} role="Child" />
+              ))}
+              {extraChildren > 0 && (
+                <div className="px-2.5 py-1.5 rounded-md border border-stone-200 bg-stone-50 text-xs text-stone-500 self-end">
+                  +{extraChildren} more
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 /* ── Relationship Calculator ────────────────────────────────── */
 
 function RelationshipCalculator({ person }: { person: Person }) {
@@ -499,6 +627,10 @@ export default function PersonPage() {
           <strong>Private:</strong> This person is marked as private. Personal details, sources, and media are not displayed.
         </div>
       )}
+
+      {/* Completeness + Mini Tree — only for non-private people */}
+      {!person.privacy && <CompletenessCard person={person} sourceCount={personSources.length} />}
+      {!person.privacy && <MiniTree person={person} />}
 
       {/* Vital Information */}
       {!person.privacy && (

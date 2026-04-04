@@ -2,8 +2,28 @@ import { useMemo } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Link } from 'react-router-dom'
-import { useImmigrationStories } from '../useData'
+import { useImmigrationStories, usePeople } from '../useData'
 import type { Components } from 'react-markdown'
+import type { Person } from '../types'
+
+function autolinkPeople(markdown: string, people: Person[]): string {
+  // Sort by name length descending — match longer names first to avoid partial matches
+  const sorted = people
+    .filter(p => !p.privacy && p.name && p.slug && p.name.length >= 5)
+    .sort((a, b) => b.name.length - a.name.length)
+
+  return markdown.split('\n').map(line => {
+    // Skip headings, blockquotes, and lines that already contain markdown links
+    if (line.startsWith('#') || line.startsWith('>') || line.includes('](')) return line
+
+    let result = line
+    for (const p of sorted) {
+      const escaped = p.name.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&')
+      result = result.replace(new RegExp(`\\b${escaped}\\b`, 'g'), `[${p.name}](/people/${p.slug})`)
+    }
+    return result
+  }).join('\n')
+}
 
 /* ── Markdown components (matches ReportPage, adds id to h2) ── */
 
@@ -71,6 +91,7 @@ const components: Components = {
 
 export default function ImmigrationPage() {
   const content = useImmigrationStories()
+  const people = usePeople()
 
   // Extract H2 headings for table of contents
   const toc = useMemo(() => {
@@ -86,7 +107,10 @@ export default function ImmigrationPage() {
   }, [content])
 
   // Strip the H1 title from content — we render our own header
-  const body = content.replace(/^# .+\n+/, '')
+  const rawBody = content.replace(/^# .+\n+/, '')
+
+  // Auto-link person names that appear in the narrative
+  const body = useMemo(() => autolinkPeople(rawBody, people), [rawBody, people])
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">

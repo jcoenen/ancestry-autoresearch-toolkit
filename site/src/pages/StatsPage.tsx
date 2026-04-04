@@ -292,7 +292,7 @@ export default function StatsPage() {
 
       {/* Names */}
       <Section title="Most Common First Names">
-        <BarChart items={stats.topNames.map(([name, count]) => ({ label: name, value: count }))} />
+        <BarChart items={stats.topNames.map(([name, count]) => ({ label: name, value: count, link: `/people?search=${encodeURIComponent(name)}` }))} />
       </Section>
 
       <Section title="Surname Distribution">
@@ -361,27 +361,31 @@ export default function StatsPage() {
 
       {/* Geography */}
       <Section title="Top Birthplaces">
-        <BarChart items={stats.topPlaces.map(([place, count]) => ({ label: place, value: count }))} />
+        <BarChart items={stats.topPlaces.map(([place, count]) => ({
+          label: place,
+          value: count,
+          link: place !== 'Unknown' ? `/people?search=${encodeURIComponent(place)}` : undefined,
+        }))} />
       </Section>
 
       {/* Occupations */}
       {stats.topOccupations.length > 0 && (
         <Section title="Occupations">
-          <BarChart items={stats.topOccupations.map(([occ, count]) => ({ label: occ, value: count }))} />
+          <BarChart items={stats.topOccupations.map(([occ, count]) => ({ label: occ, value: count, link: `/people?search=${encodeURIComponent(occ)}` }))} />
         </Section>
       )}
 
       {/* Immigration */}
       {stats.topImmigration.length > 0 && (
         <Section title={`Immigration (${stats.totalImmigrants} people)`}>
-          <BarChart items={stats.topImmigration.map(([imm, count]) => ({ label: imm, value: count }))} />
+          <BarChart items={stats.topImmigration.map(([imm, count]) => ({ label: imm, value: count, link: `/people?search=${encodeURIComponent(imm)}` }))} />
         </Section>
       )}
 
       {/* Military */}
       {stats.topMilitary.length > 0 && (
         <Section title={`Military Service (${stats.totalMilitary} people)`}>
-          <BarChart items={stats.topMilitary.map(([mil, count]) => ({ label: mil, value: count }))} />
+          <BarChart items={stats.topMilitary.map(([mil, count]) => ({ label: mil, value: count, link: `/people?search=${encodeURIComponent(mil)}` }))} />
         </Section>
       )}
 
@@ -400,9 +404,11 @@ export default function StatsPage() {
             <div className="space-y-2">
               {(['high', 'moderate', 'low', 'stub'] as const).map(level => (
                 <div key={level} className="flex items-center gap-3">
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium w-24 text-center ${confidenceColor(level)}`}>
-                    {level}
-                  </span>
+                  <Link to="/research-gaps" className="hover:no-underline">
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium w-24 text-center block hover:opacity-80 ${confidenceColor(level)}`}>
+                      {level}
+                    </span>
+                  </Link>
                   <div className="flex-1 h-5 bg-stone-100 rounded overflow-hidden">
                     <div
                       className="h-full bg-amber-600/80 rounded"

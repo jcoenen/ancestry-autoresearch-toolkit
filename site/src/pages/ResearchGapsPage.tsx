@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { usePeople, useData, extractYear, confidenceColor } from '../useData'
 import { generateResearchPlan, SUGGESTIONS } from '../../scripts/lib/research-plan'
+import FamilyFilterDropdown from '../components/FamilyFilterDropdown'
 import type { Person, SourceEntry } from '../types'
 import type { GapData } from '../../scripts/lib/research-plan'
 
@@ -149,9 +150,15 @@ export default function ResearchGapsPage() {
   const people = usePeople()
   const { sources } = useData()
   const [copied, setCopied] = useState(false)
+  const [familyFilter, setFamilyFilter] = useState<Set<string>>(new Set())
+
+  const families = useMemo(() => {
+    const set = new Set(people.filter(p => !p.privacy).map(p => p.family).filter(Boolean))
+    return Array.from(set).sort()
+  }, [people])
 
   const gaps = useMemo<GapData>(() => {
-    const pub = people.filter(p => !p.privacy)
+    const pub = people.filter(p => !p.privacy && (familyFilter.size === 0 || familyFilter.has(p.family)))
     const total = pub.length
 
     // Confidence
@@ -215,7 +222,7 @@ export default function ResearchGapsPage() {
 
   // Per-person prioritized view
   const prioritized = useMemo(() => {
-    const pub = people.filter(p => !p.privacy)
+    const pub = people.filter(p => !p.privacy && (familyFilter.size === 0 || familyFilter.has(p.family)))
     return pub
       .map(p => ({ person: p, missing: countMissingFields(p) }))
       .filter(e => e.missing > 0)
@@ -245,7 +252,8 @@ export default function ResearchGapsPage() {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
       <div className="flex items-start justify-between mb-2">
         <h1 className="text-3xl font-bold text-stone-800">Research Gaps</h1>
-        <div className="flex gap-2 shrink-0 ml-4">
+        <div className="flex items-center gap-2 shrink-0 ml-4">
+          <FamilyFilterDropdown families={families} selected={familyFilter} onChange={setFamilyFilter} single />
           <button
             onClick={handleCopy}
             className="px-3 py-1.5 text-xs font-medium rounded-lg border border-stone-200 bg-white text-stone-600 hover:bg-stone-50 transition-colors"
