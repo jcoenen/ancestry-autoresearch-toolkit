@@ -528,6 +528,7 @@ function validateMediaIndex(): { result: ValidationResult; entryCount: number; n
 
 
 async function main() {
+  const verbose = process.argv.includes('--verbose');
   console.log('Validating vault...\n');
 
   let totalErrors = 0;
@@ -565,9 +566,13 @@ async function main() {
       }
     }
     if (srcWarnings > 0) {
-      console.log(`  ! ${srcWarnings} warnings:`);
-      for (const w of srcValidation.result.warnings) {
-        console.log(`    ${w}`);
+      if (verbose) {
+        console.log(`  ! ${srcWarnings} warnings:`);
+        for (const w of srcValidation.result.warnings) {
+          console.log(`    ${w}`);
+        }
+      } else {
+        console.log(`  ! ${srcWarnings} warnings (run with --verbose to see)`);
       }
     }
   } else {
@@ -610,9 +615,13 @@ async function main() {
       }
     }
     if (pplWarnings > 0) {
-      console.log(`  ! ${pplWarnings} warnings:`);
-      for (const w of pplValidation.result.warnings) {
-        console.log(`    ${w}`);
+      if (verbose) {
+        console.log(`  ! ${pplWarnings} warnings:`);
+        for (const w of pplValidation.result.warnings) {
+          console.log(`    ${w}`);
+        }
+      } else {
+        console.log(`  ! ${pplWarnings} warnings (run with --verbose to see)`);
       }
     }
   } else {
@@ -637,9 +646,13 @@ async function main() {
     }
   }
   if (mediaWarnings > 0) {
-    console.log(`  ! ${mediaWarnings} warnings:`);
-    for (const w of mediaResult.warnings) {
-      console.log(`    ${w}`);
+    if (verbose) {
+      console.log(`  ! ${mediaWarnings} warnings:`);
+      for (const w of mediaResult.warnings) {
+        console.log(`    ${w}`);
+      }
+    } else {
+      console.log(`  ! ${mediaWarnings} warnings (run with --verbose to see)`);
     }
   }
 
@@ -713,9 +726,13 @@ async function main() {
   if (unresolvedPersons.length === 0) {
     console.log(`  \u2713 All persons in source files have matching person files`);
   } else {
-    console.log(`  ! ${unresolvedPersons.length} unresolved:`);
-    for (const w of unresolvedPersons) {
-      console.log(`    ${w}`);
+    if (verbose) {
+      console.log(`  ! ${unresolvedPersons.length} unresolved:`);
+      for (const w of unresolvedPersons) {
+        console.log(`    ${w}`);
+      }
+    } else {
+      console.log(`  ! ${unresolvedPersons.length} unresolved (run with --verbose to see)`);
     }
   }
 
