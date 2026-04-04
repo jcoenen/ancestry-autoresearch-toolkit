@@ -1,6 +1,25 @@
-# Handover — 2026-04-01
+# Handover — 2026-04-04
 
 ## What Was Done
+
+### Session 17: Children Slide-Out for Full Pedigree + Persistent Fixture Data
+
+**Children slide-out on Full Pedigree (Dagre) view:**
+- `VCoupleCardNode` in `VerticalTreePrototypes.tsx` now shows a "Children (N)" button at the bottom of each card that has children
+- Clicking it opens an absolutely-positioned panel to the right of the card listing all children with tree-line characters, profile links, and birth/death years
+- Panel has a close button and doesn't affect the Dagre layout since it's positioned as an overlay
+
+**Persistent fixture data (solves recurring "lost test data" problem):**
+- Created `site/src/data/fixture-data.json` (committed to git) with 38 people across 6 generations — Dutch (Coenen, Bakker, Visser, Janssen), German (Schmidt, Weber), and Irish (O'Brien, Connolly) family lines
+- Multiple children per couple (2-4 each) to properly exercise tree features
+- Root person is Willem Coenen (I1, b.1920), both paternal and maternal lines go back to ~1795
+- Added `predev` npm script that auto-copies fixture to `site-data.json` when it's missing — no more manual data recreation each session
+
+**Test fixes (6 pre-existing failures):**
+- Updated `ALLOWED_CONFIDENCE` test to include `'speculative'` (added in commit `2541ff1`)
+- Fixed `checkBidirectionalRelationships` tests: renamed `fatherLink`/`motherLink`/`childLinks`/`spouseLinks` to `fatherId`/`motherId`/`childIds`/`spouseIds` and switched from file-path values to gedcom IDs to match the current `PersonRelationships` interface
+
+Commit: `133771e`
 
 ### Session 16: Gallery Lightbox with Swipe Navigation
 
