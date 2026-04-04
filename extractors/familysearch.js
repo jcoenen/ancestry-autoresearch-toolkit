@@ -194,6 +194,25 @@
   // --- ARK ---
   const ark = window.location.pathname.replace(/\?.*$/, '');
 
+  // --- Self-diagnostic: detect extraction failure ---
+  // If we're on a record page but got nothing, the DOM probably changed.
+  // Return a clear signal so the caller falls back to browser_snapshot.
+  const detailCount = Object.keys(details).length;
+  const isRecordPage = ark.includes('/ark:/');
+  if (isRecordPage && !name && detailCount === 0) {
+    return {
+      error: 'extraction_failed',
+      reason: 'On a record page but extracted no name or details. DOM structure likely changed.',
+      fallback: 'Use browser_snapshot instead of this extractor.',
+      url: window.location.href,
+      ark,
+      // Include raw page info for debugging
+      title: document.title,
+      h1: document.querySelector('h1')?.textContent?.trim(),
+      tableCount: document.querySelectorAll('table').length
+    };
+  }
+
   return {
     name, eventType, collection, mentionedIn,
     details, relatedPeople, treePersons,
@@ -318,6 +337,21 @@
   const count = parseInt(urlParams.get('count')) || 20;
   const currentPage = Math.floor(offset / count) + 1;
   const totalPages = totalResults ? Math.ceil(totalResults / count) : null;
+
+  // --- Self-diagnostic: detect extraction failure ---
+  // If totalResults says there are results but we extracted zero, DOM changed.
+  const isSearchPage = window.location.pathname.includes('/search/');
+  if (isSearchPage && results.length === 0 && (totalResults > 0 || document.querySelectorAll('table').length > 0)) {
+    return {
+      error: 'extraction_failed',
+      reason: 'On a search page with tables/results but extracted zero rows. DOM structure likely changed.',
+      fallback: 'Use browser_snapshot instead of this extractor.',
+      url: window.location.href,
+      title: document.title,
+      tableCount: document.querySelectorAll('table').length,
+      totalResults
+    };
+  }
 
   return {
     count: results.length,
