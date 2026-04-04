@@ -116,20 +116,21 @@ interface SourceEntry {
 const SOURCES_DIR = resolve(ROOT, 'sources');
 const GEOCODE_CACHE = resolve(import.meta.dirname, '..', 'src', 'data', 'geocode-cache.json');
 
-/* ── Geocoding via Nominatim ─────────────────────────────────── */
+/* ── Geocoding (cache read-only at build time) ───────────────── */
+// Run `npm run geocode` to populate the cache. Build never hits the network.
 
-async function geocodeLocations(
+function geocodeLocations(
   people: PersonData[],
-): Promise<Record<string, [number, number] | null>> {
+): Record<string, [number, number] | null> {
   // Load existing cache
   let cache: Record<string, [number, number] | null> = {};
   try {
     cache = JSON.parse(readFileSync(GEOCODE_CACHE, 'utf-8'));
   } catch {
-    // no cache yet
+    // no cache yet — map will be empty until `npm run geocode` is run
   }
 
-  // Collect all unique location strings
+  // Collect all unique location strings from person records
   const locations = new Set<string>();
   for (const p of people) {
     if (p.birthplace) locations.add(p.birthplace);
@@ -138,65 +139,12 @@ async function geocodeLocations(
     if (p.residence) locations.add(p.residence);
     if (p.immigration) locations.add(p.immigration);
     if (p.emigration) locations.add(p.emigration);
-    for (const sp of p.spouses) {
-      if (!sp.marriageDate) continue;
-      const yearMatch = sp.marriageDate.match(/(\d{4})/);
-      if (yearMatch) {
-        const afterYear = sp.marriageDate
-          .slice(sp.marriageDate.indexOf(yearMatch[1]) + 4)
-          .replace(/^[,\s]+/, '');
-        if (afterYear) locations.add(afterYear);
-      }
-    }
   }
 
-  // Find locations not yet cached
-  const uncached = Array.from(locations).filter(loc => !(loc in cache));
-  if (uncached.length > 0) {
-    console.log(`\nGeocoding ${uncached.length} new locations (${locations.size} total)...`);
-    for (const loc of uncached) {
-      // Skip strings that are clearly not geocodable (partial dates, lone years, etc.)
-      if (/^-?\d{1,4}(-\d{2}(-\d{2})?)?$/.test(loc.trim())) {
-        cache[loc] = null;
-        continue;
-      }
-      try {
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(loc)}&format=json&limit=1`;
-        const res = await fetch(url, {
-          headers: { 'User-Agent': 'ancestry-toolkit/1.0 (personal genealogy project)' },
-        });
-        if (!res.ok) {
-          cache[loc] = null;
-          console.warn(`  ${loc} -> HTTP ${res.status}`);
-          await new Promise(r => setTimeout(r, 1100));
-          continue;
-        }
-        const ct = res.headers.get('content-type') ?? '';
-        if (!ct.includes('json')) {
-          cache[loc] = null;
-          console.warn(`  ${loc} -> non-JSON response (${ct})`);
-          await new Promise(r => setTimeout(r, 1100));
-          continue;
-        }
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          cache[loc] = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-          console.log(`  ${loc} -> [${cache[loc]![0].toFixed(4)}, ${cache[loc]![1].toFixed(4)}]`);
-        } else {
-          cache[loc] = null;
-          console.warn(`  ${loc} -> NOT FOUND`);
-        }
-        // Rate limit: 1 request per second per Nominatim policy
-        await new Promise(r => setTimeout(r, 1100));
-      } catch (err) {
-        cache[loc] = null;
-        console.warn(`  ${loc} -> ERROR: ${err}`);
-      }
-    }
-
-    // Write updated cache back
-    writeFileSync(GEOCODE_CACHE, JSON.stringify(cache, null, 2));
-    console.log(`Geocode cache updated: ${GEOCODE_CACHE}`);
+  const cached = Array.from(locations).filter(loc => loc in cache).length;
+  const uncached = locations.size - cached;
+  if (uncached > 0) {
+    console.log(`\nGeocoding: ${cached}/${locations.size} locations cached (run \`npm run geocode\` to fill ${uncached} missing)`);
   } else {
     console.log(`\nGeocoding: all ${locations.size} locations cached`);
   }
@@ -515,7 +463,7 @@ async function main() {
   }
 
   // Geocode locations for the map page
-  const geocodedLocations = await geocodeLocations(people);
+  const geocodedLocations = geocodeLocations(people);
 
   const output = { people, media: filteredMedia, sources, stats, report, translations, immigrationStories, config: siteConfig, geocodedLocations };
 
