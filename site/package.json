@@ -9,7 +9,6 @@
     "build:data": "npx tsx scripts/build-data.ts",
     "build": "npm run build:data && tsc -b && vite build",
     "validate": "npx tsx scripts/validate_vault.ts",
-    "geocode": "npx tsx scripts/geocode.ts",
     "export:gedcom": "npx tsx scripts/export-gedcom.ts",
     "import:gedcom": "npx tsx scripts/import-gedcom.ts",
     "init": "npx tsx scripts/init-project.ts",

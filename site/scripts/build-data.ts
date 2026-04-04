@@ -114,7 +114,7 @@ interface SourceEntry {
 }
 
 const SOURCES_DIR = resolve(ROOT, 'sources');
-const GEOCODE_CACHE = resolve(import.meta.dirname, '..', 'src', 'data', 'geocode-cache.json');
+const GEOCODE_CACHE = resolve(ROOT, 'geocode-cache.json');
 
 /* ── Geocoding (cache read-only at build time) ───────────────── */
 // Run `npm run geocode` to populate the cache. Build never hits the network.
