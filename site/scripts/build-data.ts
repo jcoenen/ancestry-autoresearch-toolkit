@@ -155,11 +155,29 @@ async function geocodeLocations(
   if (uncached.length > 0) {
     console.log(`\nGeocoding ${uncached.length} new locations (${locations.size} total)...`);
     for (const loc of uncached) {
+      // Skip strings that are clearly not geocodable (partial dates, lone years, etc.)
+      if (/^-?\d{1,4}(-\d{2}(-\d{2})?)?$/.test(loc.trim())) {
+        cache[loc] = null;
+        continue;
+      }
       try {
         const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(loc)}&format=json&limit=1`;
         const res = await fetch(url, {
           headers: { 'User-Agent': 'ancestry-toolkit/1.0 (personal genealogy project)' },
         });
+        if (!res.ok) {
+          cache[loc] = null;
+          console.warn(`  ${loc} -> HTTP ${res.status}`);
+          await new Promise(r => setTimeout(r, 1100));
+          continue;
+        }
+        const ct = res.headers.get('content-type') ?? '';
+        if (!ct.includes('json')) {
+          cache[loc] = null;
+          console.warn(`  ${loc} -> non-JSON response (${ct})`);
+          await new Promise(r => setTimeout(r, 1100));
+          continue;
+        }
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           cache[loc] = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
