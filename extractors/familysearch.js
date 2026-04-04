@@ -1,133 +1,189 @@
 /**
- * FamilySearch Record Extractor
+ * FamilySearch Record & Search Extractors
  *
  * Browser-context JavaScript functions for extracting structured data from
- * FamilySearch record pages via Playwright's browser_evaluate.
+ * FamilySearch pages via Playwright's browser_evaluate.
  *
  * Usage (from Claude Code):
- *   1. Navigate to a FamilySearch record page (/ark:/61903/1:1:XXXX)
- *   2. Run extractRecord() via browser_evaluate
+ *   1. Navigate to a FamilySearch record or search page
+ *   2. Copy the appropriate function below into browser_evaluate
  *
- * These replace full-page snapshots, reducing token usage by ~90% per record.
+ * Replaces full-page snapshots, reducing token usage by ~90% per page.
  *
- * DOM notes:
- *   - Main person details: first table.tableCss_tobv3gy (TH=field, TD=value)
- *   - Use innerText (not textContent) for TD values — textContent includes
- *     hidden responsive duplicates (e.g., "December 1856Dec 1856")
- *   - Related people: table.tableCss_t1upzggo with expandable rows
- *     Summary rows have exactly 6 direct children: TH(name), TD(relationship),
- *     TD(sex), TD(age), TD(birthplace), TD(empty)
- *   - Section heading for related people: walk up ~2-5 parent levels from
- *     the expandable table, check previousElementSibling for H3
- *   - Tree attachments: [data-testid="person"] elements
- *   - Citation: [data-testid="documentInformationCitation"]
- *   - View Original: [data-testid="viewOriginalDocument-Button"]
+ * Selector strategy:
+ *   All selectors use structural/content detection (table shape, child count,
+ *   TH/TD patterns, data-testid attributes) rather than CSS class names, which
+ *   are CSS-in-JS hashes that change on deploys. CSS classes are used only as
+ *   an optimization hint, never as the sole selector.
  *
  * Tested against:
- *   - /ark:/61903/1:1:N3F1-44Q (Michigan marriage record — Parcfic Lemieux)
- *   - /ark:/61903/1:1:MS98-K42 (1900 US Census — Percelie Lamere, 11 household members)
+ *   - /ark:/61903/1:1:N3F1-44Q (MI marriage — Parcfic Lemieux, 5 related, mentionedIn)
+ *   - /ark:/61903/1:1:MS98-K42 (1900 Census — Percelie Lamere, 11 household, expanded details)
+ *   - Search results page (61 results, 20/page, date/place edge cases)
  */
 
 // =============================================================================
 // FUNCTION: extractRecord
 // Run on: https://www.familysearch.org/ark:/61903/1:1:XXXX
-// Returns: structured JSON with all record data
+// Returns: structured JSON with all record data including expanded details
 // =============================================================================
 
 /*
 () => {
+  // --- Session check ---
+  if (window.location.hostname === 'ident.familysearch.org' ||
+      document.title.includes('Sign-in') ||
+      document.title === 'Page Not Found') {
+    return { error: document.title.includes('Sign-in') ? 'login_required' : 'page_not_found', url: window.location.href };
+  }
+
   // --- Person name (H1) ---
   const name = document.querySelector('h1')?.innerText?.trim() || null;
 
   // --- Record context (H2s) ---
-  // H2 pattern: "Mentioned in the Record of [name]" and/or "EventType . CollectionName"
   const h2s = Array.from(document.querySelectorAll('h2')).map(h => h.innerText.trim());
-  let mentionedIn = null;
-  let eventType = null;
-  let collection = null;
+  let mentionedIn = null, eventType = null, collection = null;
   for (const h2 of h2s) {
     if (h2.startsWith('Mentioned in the Record of')) {
       mentionedIn = h2.replace('Mentioned in the Record of ', '');
     }
-    const dotMatch = h2.match(/^(.+?)\s+[•·]\s+(.+)$/);
-    if (dotMatch) {
-      eventType = dotMatch[1];
-      collection = dotMatch[2];
-    }
+    // Handle bullet variants: •, ·, middle dot, etc.
+    const dotMatch = h2.match(/^(.+?)\s+[•·\u2022\u00b7\u2027]\s+(.+)$/);
+    if (dotMatch) { eventType = dotMatch[1]; collection = dotMatch[2]; }
   }
 
-  // --- Main person details (first tobv3gy table) ---
-  const detailTable = document.querySelector('table[class*="tobv3gy"]');
+  // --- Helper: find key-value detail tables ---
+  // A detail table has ALL rows with exactly 2 children (TH + TD).
+  // Excludes the "Document Information" table (first TH = "Digital Folder Number").
+  function findDetailTables() {
+    return Array.from(document.querySelectorAll('table')).filter(t => {
+      const rows = Array.from(t.querySelectorAll(':scope > tbody > tr, :scope > tr'));
+      if (rows.length === 0) return false;
+      const allKv = rows.every(tr => {
+        const ch = tr.children;
+        return ch.length === 2 && ch[0]?.tagName === 'TH' && ch[1]?.tagName === 'TD';
+      });
+      if (!allKv) return false;
+      // Exclude document info table and nested expanded-detail tables
+      const firstTh = rows[0]?.children[0]?.innerText?.trim();
+      if (firstTh === 'Digital Folder Number') return false;
+      // Exclude tables inside colspan="6" expanded rows
+      if (t.closest('th[colspan]')) return false;
+      return true;
+    });
+  }
+
+  // --- Main person details (all top-level detail tables) ---
   const details = {};
-  if (detailTable) {
-    for (const tr of detailTable.querySelectorAll('tr')) {
+  for (const table of findDetailTables()) {
+    for (const tr of table.querySelectorAll(':scope > tbody > tr, :scope > tr')) {
       const th = tr.querySelector('th');
       const td = tr.querySelector('td');
       if (th && td) {
+        // Use innerText to avoid hidden responsive duplicates
         details[th.innerText.trim()] = td.innerText.trim();
       }
     }
   }
 
-  // --- Related people (expandable tables) ---
-  const expandables = Array.from(document.querySelectorAll('table')).filter(t =>
-    t.className.includes('t1upzggo')
-  );
+  // --- Helper: find expandable people tables ---
+  // These have summary rows with exactly 6 direct children (TH + 5 TDs)
+  // and contain person name links to ARK URLs.
+  function findExpandableTables() {
+    return Array.from(document.querySelectorAll('table')).filter(t => {
+      // Must not be inside an expanded row
+      if (t.closest('th[colspan]')) return false;
+      const rows = Array.from(t.querySelectorAll(':scope > tbody > tr, :scope > tr'));
+      return rows.some(tr =>
+        tr.children.length === 6 &&
+        tr.children[0]?.tagName === 'TH' &&
+        tr.children[0]?.querySelector('a[href*="/ark:"]')
+      );
+    });
+  }
 
+  // --- Click "Open All" to expand detail rows ---
+  const openAllBtns = Array.from(document.querySelectorAll('button'))
+    .filter(b => b.textContent.trim() === 'Open All');
+  for (const btn of openAllBtns) btn.click();
+
+  // --- Related people with full expanded details ---
   const relatedPeople = [];
-  for (const table of expandables) {
+  for (const table of findExpandableTables()) {
     // Find section heading by walking up parent chain
     let section = null;
     let container = table;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
       container = container.parentElement;
       if (!container) break;
       let prev = container.previousElementSibling;
       while (prev) {
         const h3 = prev.tagName === 'H3' ? prev : prev.querySelector?.('h3');
-        if (h3) {
-          section = h3.innerText.trim();
-          break;
-        }
+        if (h3) { section = h3.innerText.trim(); break; }
         prev = prev.previousElementSibling;
       }
       if (section) break;
     }
 
-    // Extract summary rows (exactly 6 direct children)
-    for (const row of table.querySelectorAll('tr')) {
+    const rows = Array.from(table.querySelectorAll(':scope > tbody > tr, :scope > tr'));
+
+    for (let ri = 0; ri < rows.length; ri++) {
+      const row = rows[ri];
       const children = Array.from(row.children);
-      if (children.length !== 6) continue;
-      if (children[0].tagName !== 'TH') continue;
+
+      // Summary row: exactly 6 children, first is TH with ark link
+      if (children.length !== 6 || children[0].tagName !== 'TH') continue;
       const link = children[0].querySelector('a[href*="/ark:"]');
       if (!link) continue;
 
-      relatedPeople.push({
+      const person = {
         name: link.innerText.trim(),
         ark: link.getAttribute('href')?.replace(/\?.*$/, '') || null,
-        section: section,
+        section,
         relationship: children[1]?.innerText?.trim() || null,
         sex: children[2]?.innerText?.trim() || null,
         age: children[3]?.innerText?.trim() || null,
-        birthplace: children[4]?.innerText?.trim() || null
-      });
+        birthplace: children[4]?.innerText?.trim() || null,
+        details: null
+      };
+
+      // Check next row for expanded details (single TH with colspan="6")
+      const nextRow = rows[ri + 1];
+      if (nextRow) {
+        const nextCh = nextRow.children;
+        if (nextCh.length === 1 && nextCh[0]?.tagName === 'TH' && nextCh[0].getAttribute('colspan')) {
+          const nestedTable = nextCh[0].querySelector('table');
+          if (nestedTable) {
+            const expanded = {};
+            for (const tr of nestedTable.querySelectorAll(':scope > tbody > tr, :scope > tr')) {
+              const th = tr.querySelector('th');
+              const td = tr.querySelector('td');
+              if (th && td) expanded[th.innerText.trim()] = td.innerText.trim();
+            }
+            // Only include if it has meaningful data beyond what summary has
+            if (Object.keys(expanded).length > 0) person.details = expanded;
+          }
+        }
+      }
+
+      relatedPeople.push(person);
     }
   }
 
-  // --- Tree attachments ---
-  const treePersons = Array.from(document.querySelectorAll('[data-testid="person"]')).map(el => ({
-    fullName: el.querySelector('[data-testid="fullName"]')?.innerText?.trim() || null,
-    lifespan: el.querySelector('[data-testid="lifespan"]')?.innerText?.trim() || null,
-    pid: el.querySelector('[data-testid="pid"]')?.innerText?.trim() || null,
-    treeUrl: el.querySelector('[data-testid="nameLink"]')?.getAttribute('href') || null
-  }));
-  // Deduplicate tree persons by PID
+  // --- Tree attachments (stable data-testid selectors) ---
   const seenPids = new Set();
-  const uniqueTreePersons = treePersons.filter(p => {
-    if (!p.pid || seenPids.has(p.pid)) return false;
-    seenPids.add(p.pid);
-    return true;
-  });
+  const treePersons = Array.from(document.querySelectorAll('[data-testid="person"]'))
+    .map(el => ({
+      fullName: el.querySelector('[data-testid="fullName"]')?.innerText?.trim() || null,
+      lifespan: el.querySelector('[data-testid="lifespan"]')?.innerText?.trim() || null,
+      pid: el.querySelector('[data-testid="pid"]')?.innerText?.trim() || null,
+      treeUrl: el.querySelector('[data-testid="nameLink"]')?.getAttribute('href') || null
+    }))
+    .filter(p => {
+      if (!p.pid || seenPids.has(p.pid)) return false;
+      seenPids.add(p.pid);
+      return true;
+    });
 
   // --- Citation ---
   const citation = document.querySelector('[data-testid="documentInformationCitation"]')?.innerText?.trim() || null;
@@ -139,16 +195,9 @@
   const ark = window.location.pathname.replace(/\?.*$/, '');
 
   return {
-    name,
-    eventType,
-    collection,
-    mentionedIn,
-    details,
-    relatedPeople,
-    treePersons: uniqueTreePersons,
-    citation,
-    viewOriginal,
-    ark,
+    name, eventType, collection, mentionedIn,
+    details, relatedPeople, treePersons,
+    citation, viewOriginal, ark,
     url: window.location.href
   };
 }
@@ -156,23 +205,40 @@
 
 // =============================================================================
 // FUNCTION: extractSearchResults
-// Run on: https://www.familysearch.org/search/record/results?q.any=...
-// Returns: array of search result objects
+// Run on: https://www.familysearch.org/search/record/results?...
+// Returns: structured search results with parsed events
 //
 // DOM structure per result row (5 TDs):
 //   TD[0]: "More" button
-//   TD[1]: Name cell — strong>a[href*="/ark:"][href*="1:1:"] for name+ARK,
-//          then role text (Principal/Groom/Bride/etc.) and collection name
-//   TD[2]: Events cell — each event is a div with <strong>Type</strong>,
-//          spans for date, <br> + span for place
-//   TD[3]: Relationships cell — "Parents ...\nSpouses ..."
-//   TD[4]: Links cell — image viewer, record, linker links
+//   TD[1]: Name cell — strong>a for name+ARK, role text, collection name
+//   TD[2]: Events — each event is a div with <strong>Type</strong> + spans;
+//          <br> separates date from place; no-br uses digit detection
+//   TD[3]: Relationships — "Parents ...\nSpouses ..."
+//   TD[4]: Links — image viewer, record, linker links
 // =============================================================================
 
 /*
 () => {
-  const table = document.querySelector('table[class*="t1upzggo"]');
-  if (!table) return { count: 0, results: [], totalResults: null, url: window.location.href };
+  // --- Session check ---
+  if (window.location.hostname === 'ident.familysearch.org' ||
+      document.title.includes('Sign-in')) {
+    return { error: 'login_required', url: window.location.href };
+  }
+
+  // --- Find the results table ---
+  // Structural detection: a table whose first row has a TH or TD containing "Name"
+  // and result rows with exactly 5 TDs including ARK links.
+  let table = null;
+  for (const t of document.querySelectorAll('table')) {
+    if (t.closest('th[colspan]')) continue; // skip nested
+    const rows = Array.from(t.querySelectorAll(':scope > tbody > tr, :scope > tr'));
+    const hasResultRow = rows.some(r => {
+      const ch = r.children;
+      return ch.length === 5 && r.querySelector('a[href*="/ark:"][href*="1:1:"]');
+    });
+    if (hasResultRow) { table = t; break; }
+  }
+  if (!table) return { count: 0, totalResults: null, results: [], url: window.location.href };
 
   const rows = Array.from(table.querySelectorAll(':scope > tbody > tr, :scope > tr'));
   const results = [];
@@ -189,13 +255,13 @@
     const name = nameLink.querySelector('strong')?.innerText?.trim() || nameLink.innerText?.trim();
     const ark = nameLink.getAttribute('href')?.replace(/\?.*$/, '') || null;
 
-    // Role and collection from name cell text
+    // Role and collection from name cell text lines
     const nameLines = nameCell.innerText.trim().split('\n').map(l => l.trim()).filter(Boolean);
     const roles = ['Principal', 'Groom', 'Bride', 'Child', 'Father', 'Mother', 'Spouse', 'Other', 'Husband', 'Wife'];
     const role = nameLines.find(l => roles.includes(l)) || null;
     const collection = nameLines.find(l => l.includes(',') && l !== name) || null;
 
-    // Events — parse from DOM structure: each div has <strong>Type</strong> + spans
+    // Events — each div with <strong> is one event
     const eventsCell = cells[2];
     const events = [];
     if (eventsCell) {
@@ -204,14 +270,12 @@
         const strong = div.querySelector('strong');
         if (!strong) continue;
         const type = strong.textContent.trim();
-        // Spans contain date and place; <br> separates date from place
         const hasBr = !!div.querySelector('br');
         const spans = Array.from(div.querySelectorAll('span'))
           .map(s => s.textContent.replace(/\u00a0/g, '').trim())
           .filter(Boolean);
         let date = null, place = null;
         if (hasBr) {
-          // Before <br> = date spans, after <br> = place spans
           const brEl = div.querySelector('br');
           const beforeSpans = [], afterSpans = [];
           for (const span of div.querySelectorAll('span')) {
@@ -226,7 +290,6 @@
           date = beforeSpans.join(' ').trim() || null;
           place = afterSpans.join(' ').trim() || null;
         } else {
-          // No <br>: spans with digits are dates, otherwise places
           const dateSpans = [], placeSpans = [];
           for (const s of spans) {
             if (/\d/.test(s)) dateSpans.push(s);
@@ -245,13 +308,22 @@
     results.push({ name, ark, role, collection, events, relationships: relText });
   }
 
-  // Total results count from header
-  const totalMatch = document.body.innerText.match(/Historical Record Search Results \((\d+)\)/);
-  const totalResults = totalMatch ? parseInt(totalMatch[1]) : null;
+  // Total results and pagination
+  const totalMatch = document.body.innerText.match(/Historical Record Search Results \(([,\d]+)\)/);
+  const totalResults = totalMatch ? parseInt(totalMatch[1].replace(/,/g, '')) : null;
+
+  // Current page from URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const offset = parseInt(urlParams.get('offset')) || 0;
+  const count = parseInt(urlParams.get('count')) || 20;
+  const currentPage = Math.floor(offset / count) + 1;
+  const totalPages = totalResults ? Math.ceil(totalResults / count) : null;
 
   return {
     count: results.length,
     totalResults,
+    currentPage,
+    totalPages,
     results,
     url: window.location.href
   };
