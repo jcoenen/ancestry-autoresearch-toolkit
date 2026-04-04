@@ -2,6 +2,47 @@
 
 ## What Was Done
 
+### Session 19: Nav Reorganization + 6 UX Improvements
+
+**Nav restructure (`Nav.tsx`):**
+- Replaced the single "Explore" catch-all dropdown with two focused dropdowns
+- **Visualize** ▾: Timeline, Family Map, Statistics, On This Day
+- **Research** ▾: Sources, Report, Immigration Stories, Research Gaps, What's New, Features Guide
+- Top-level links: Home | Family Tree | People | Gallery (removed Report and Sources from top bar)
+- Opening one dropdown now auto-closes the other (mutual exclusion)
+- Extracted `ChevronIcon` component to avoid duplicating the SVG
+- Mobile menu updated with two labeled sections matching the desktop dropdowns
+
+**Stats drill-down (`StatsPage.tsx` + `FamilyDirectory.tsx`):**
+- First names, birthplaces, occupations, immigration, and military bars are now clickable links
+- Links go to `/people?search=<value>`, pre-populating the directory search
+- Confidence level badges (high/moderate/low/stub) link to `/research-gaps`
+- `FamilyDirectory.tsx` updated to read `?search=` URL param and pre-fill the search box
+
+**Research Gaps family filter (`ResearchGapsPage.tsx`):**
+- Added `FamilyFilterDropdown` in the header toolbar (single-select mode)
+- All gap lists, the priority targets table, and the completeness score filter to the selected family
+
+**Timeline: immigration + military events (`TimelinePage.tsx`):**
+- Added `'immigration'` (amber) and `'military'` (slate) event types
+- Year is extracted from the field string via `extractYear` (same as other date fields)
+- Both types are on by default with toggle buttons in the filter bar
+- `flex-wrap` added to the filter buttons row to handle the wider set
+
+**Immigration page auto-linking (`ImmigrationPage.tsx`):**
+- Added `autolinkPeople()` function that pre-processes the markdown body
+- Replaces full person names (≥5 chars) with `[Name](/people/slug)` links
+- Matches longest names first to avoid partial matches
+- Skips headings, blockquotes, and lines already containing markdown links
+
+**PersonPage: data completeness card + mini tree (`PersonPage.tsx`):**
+- `CompletenessCard`: shows 7 fields (born, birthplace, died, father, mother, sources, biography) as green/red chips with an overall % score — hidden when 100% complete; print-hidden
+- `MiniTree`: compact visual showing parents → person (amber highlight) → children; all entries are clickable profile links; handles missing parents gracefully; print-hidden
+- Both inserted between the header and Vital Information section, non-private people only
+- Added `extractYear` to the PersonPage imports
+
+**State:** 194 tests passing, TypeScript clean, pushed to `master` as `3b31d78`
+
 ### Session 18: Family Map + Features Guide + Geocoding Pipeline
 
 **Family Map page (`/map`):**
