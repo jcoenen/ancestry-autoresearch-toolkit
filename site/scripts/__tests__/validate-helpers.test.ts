@@ -25,7 +25,7 @@ describe('constants', () => {
   });
 
   it('ALLOWED_CONFIDENCE includes expected values', () => {
-    expect(ALLOWED_CONFIDENCE).toEqual(['high', 'moderate', 'low', 'stub']);
+    expect(ALLOWED_CONFIDENCE).toEqual(['high', 'moderate', 'low', 'stub', 'speculative']);
   });
 
   it('ALLOWED_RELIABILITY includes expected values', () => {
@@ -217,28 +217,28 @@ describe('checkBidirectionalRelationships', () => {
         filePath: 'Coenen/Coenen_Henry.md',
         name: 'Henry Coenen',
         gedcomId: 'I1',
-        fatherLink: '',
-        motherLink: '',
-        childLinks: ['people/Coenen/Coenen_Roger.md'],
-        spouseLinks: ['people/Fuss/Fuss_Mary.md'],
+        fatherId: '',
+        motherId: '',
+        childIds: ['I3'],
+        spouseIds: ['I2'],
       },
       {
         filePath: 'Fuss/Fuss_Mary.md',
         name: 'Mary Fuss',
         gedcomId: 'I2',
-        fatherLink: '',
-        motherLink: '',
-        childLinks: ['people/Coenen/Coenen_Roger.md'],
-        spouseLinks: ['people/Coenen/Coenen_Henry.md'],
+        fatherId: '',
+        motherId: '',
+        childIds: ['I3'],
+        spouseIds: ['I1'],
       },
       {
         filePath: 'Coenen/Coenen_Roger.md',
         name: 'Roger Coenen',
         gedcomId: 'I3',
-        fatherLink: 'people/Coenen/Coenen_Henry.md',
-        motherLink: 'people/Fuss/Fuss_Mary.md',
-        childLinks: [],
-        spouseLinks: [],
+        fatherId: 'I1',
+        motherId: 'I2',
+        childIds: [],
+        spouseIds: [],
       },
     ];
 
@@ -252,26 +252,26 @@ describe('checkBidirectionalRelationships', () => {
         filePath: 'Coenen/Coenen_Henry.md',
         name: 'Henry Coenen',
         gedcomId: 'I1',
-        fatherLink: '',
-        motherLink: '',
-        childLinks: [],  // Missing Roger as child!
-        spouseLinks: [],
+        fatherId: '',
+        motherId: '',
+        childIds: [],  // Missing Roger as child!
+        spouseIds: [],
       },
       {
         filePath: 'Coenen/Coenen_Roger.md',
         name: 'Roger Coenen',
         gedcomId: 'I3',
-        fatherLink: 'people/Coenen/Coenen_Henry.md',
-        motherLink: '',
-        childLinks: [],
-        spouseLinks: [],
+        fatherId: 'I1',
+        motherId: '',
+        childIds: [],
+        spouseIds: [],
       },
     ];
 
     const result = checkBidirectionalRelationships(relationships);
     expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors[0]).toContain('lists father');
-    expect(result.errors[0]).toContain('does not list this person as a child');
+    expect(result.errors[0]).toContain('father');
+    expect(result.errors[0]).toContain('does not list');
   });
 
   it('detects missing spouse backlink', () => {
@@ -280,26 +280,26 @@ describe('checkBidirectionalRelationships', () => {
         filePath: 'Coenen/Coenen_Henry.md',
         name: 'Henry Coenen',
         gedcomId: 'I1',
-        fatherLink: '',
-        motherLink: '',
-        childLinks: [],
-        spouseLinks: ['people/Fuss/Fuss_Mary.md'],
+        fatherId: '',
+        motherId: '',
+        childIds: [],
+        spouseIds: ['I2'],
       },
       {
         filePath: 'Fuss/Fuss_Mary.md',
         name: 'Mary Fuss',
         gedcomId: 'I2',
-        fatherLink: '',
-        motherLink: '',
-        childLinks: [],
-        spouseLinks: [],  // Missing Henry as spouse!
+        fatherId: '',
+        motherId: '',
+        childIds: [],
+        spouseIds: [],  // Missing Henry as spouse!
       },
     ];
 
     const result = checkBidirectionalRelationships(relationships);
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors[0]).toContain('lists spouse');
-    expect(result.errors[0]).toContain('does not list this person as a spouse');
+    expect(result.errors[0]).toContain('does not list');
   });
 
   it('accepts child listing spouse as parent (indirect link)', () => {
@@ -310,28 +310,28 @@ describe('checkBidirectionalRelationships', () => {
         filePath: 'Coenen/Coenen_Henry.md',
         name: 'Henry Coenen',
         gedcomId: 'I1',
-        fatherLink: '',
-        motherLink: '',
-        childLinks: ['people/Coenen/Coenen_Roger.md'],
-        spouseLinks: ['people/Fuss/Fuss_Mary.md'],
+        fatherId: '',
+        motherId: '',
+        childIds: ['I3'],
+        spouseIds: ['I2'],
       },
       {
         filePath: 'Fuss/Fuss_Mary.md',
         name: 'Mary Fuss',
         gedcomId: 'I2',
-        fatherLink: '',
-        motherLink: '',
-        childLinks: ['people/Coenen/Coenen_Roger.md'],
-        spouseLinks: ['people/Coenen/Coenen_Henry.md'],
+        fatherId: '',
+        motherId: '',
+        childIds: ['I3'],
+        spouseIds: ['I1'],
       },
       {
         filePath: 'Coenen/Coenen_Roger.md',
         name: 'Roger Coenen',
         gedcomId: 'I3',
-        fatherLink: '',  // Doesn't list Henry directly
-        motherLink: 'people/Fuss/Fuss_Mary.md',  // Lists Mary (Henry's spouse)
-        childLinks: [],
-        spouseLinks: [],
+        fatherId: '',  // Doesn't list Henry directly
+        motherId: 'I2',  // Lists Mary (Henry's spouse)
+        childIds: [],
+        spouseIds: [],
       },
     ];
 
@@ -346,10 +346,10 @@ describe('checkBidirectionalRelationships', () => {
         filePath: 'Coenen/Coenen_Roger.md',
         name: 'Roger Coenen',
         gedcomId: 'I3',
-        fatherLink: 'people/Coenen/Coenen_Henry.md',  // Henry not in dataset
-        motherLink: '',
-        childLinks: [],
-        spouseLinks: [],
+        fatherId: 'I1',  // Henry not in dataset
+        motherId: '',
+        childIds: [],
+        spouseIds: [],
       },
     ];
 

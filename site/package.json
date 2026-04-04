@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "predev": "test -f src/data/site-data.json || cp src/data/fixture-data.json src/data/site-data.json",
     "dev": "vite",
     "build:data": "npx tsx scripts/build-data.ts",
     "build": "npm run build:data && tsc -b && vite build",
