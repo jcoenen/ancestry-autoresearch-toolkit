@@ -2,6 +2,48 @@
 
 ## What Was Done
 
+### Session 18: Family Map + Features Guide + Geocoding Pipeline
+
+**Family Map page (`/map`):**
+- Full-screen Leaflet map with OpenStreetMap tiles (no API key needed)
+- 7 event types: birth (green), death (red), marriage (purple), burial (gray), residence (blue), immigration (amber), emigration (teal) — each with color-coded circle markers
+- Marker clustering via `leaflet.markercluster` — world-to-street zoom with spiderfy at max zoom
+- Click any marker for popup with person name, event type badge, date, location, and profile link
+- Migration path arcs — dashed curved polylines from birthplace to deathPlace, color-coded by family line (22 paths in fixture data). Toggle via checkbox
+- Time period slider — dual-range input filtering events by year range (1795-2020)
+- Time animation — Play/Pause/Reset advancing through decades at 10-year intervals. Large year indicator overlay. Event counts update live
+- Heat map mode via `leaflet.heat` — toggle between marker and heat map views
+- Desktop sidebar filter panel (240px) + mobile collapsible filter button
+- Family line filter (reuses `FamilyFilterDropdown` component)
+- Auto-fit map bounds on filter changes
+- `isolate` CSS on MapContainer to scope Leaflet z-indexes (prevents nav dropdown overlap)
+
+**Geocoding pipeline (build-data.ts):**
+- New `geocodeLocations()` function collects all unique location strings from person data
+- Calls Nominatim API (free, no key) for uncached locations, rate-limited to 1 req/sec
+- Results cached in `site/src/data/geocode-cache.json` (committed to git, manually editable for corrections)
+- `geocodedLocations: Record<string, [number, number] | null>` added to `SiteData` type and `site-data.json` output
+- Fixture data includes hardcoded coordinates for 19 locations (Wisconsin cities, Netherlands regions, Ireland, France, cemeteries)
+
+**Features Guide page (`/features`):**
+- Comprehensive documentation of all 12 site features with descriptions and detailed bullet points
+- Quick navigation bar at the top to jump to any feature section
+- Each feature has an "Open" button linking to that page
+- Bold labels on detail items (e.g., **Ancestors** — description)
+- Technical Details section with "Built With" and "Data Pipeline" columns
+- Links to GitHub and home
+
+**Other changes:**
+- README.md updated with Family Map feature description and Leaflet in tech stack
+- `.gitignore` updated to exclude `.playwright-mcp/` and `.vite/` directories
+- New type declaration `leaflet-heat.d.ts` for the `leaflet.heat` module
+- `useGeocodedLocations()` hook added to `useData.ts`
+- Nav Explore dropdown: added "Family Map" (after Timeline) and "Features Guide" (at bottom)
+
+**Dependencies added:** `leaflet`, `react-leaflet`, `leaflet.markercluster`, `leaflet.heat`, `@types/leaflet`, `@types/leaflet.markercluster`
+
+Commit: `9191885`
+
 ### Session 17: Children Slide-Out for Full Pedigree + Persistent Fixture Data
 
 **Children slide-out on Full Pedigree (Dagre) view:**
