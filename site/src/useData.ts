@@ -55,6 +55,10 @@ export function getSourceSlugById(sourceId: string): string | undefined {
   return source?.slug
 }
 
+export function useGeocodedLocations(): Record<string, [number, number] | null> {
+  return data.geocodedLocations || {}
+}
+
 export function usePersonByName(name: string): Person | undefined {
   if (!name) return undefined
   const lower = name.toLowerCase()

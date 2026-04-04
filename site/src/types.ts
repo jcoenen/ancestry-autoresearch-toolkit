@@ -107,4 +107,5 @@ export interface SiteData {
   translations: Record<string, string>;
   immigrationStories: string;
   config: SiteConfig;
+  geocodedLocations: Record<string, [number, number] | null>;
 }

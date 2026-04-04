@@ -20,6 +20,12 @@ npm-debug.log*
 .env.local
 *.local
 
+# Playwright MCP screenshots
+.playwright-mcp/
+
+# Vite cache
+.vite/
+
 # Editor
 .vscode/*
 !.vscode/extensions.json

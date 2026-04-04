@@ -114,6 +114,82 @@ interface SourceEntry {
 }
 
 const SOURCES_DIR = resolve(ROOT, 'sources');
+const GEOCODE_CACHE = resolve(import.meta.dirname, '..', 'src', 'data', 'geocode-cache.json');
+
+/* ── Geocoding via Nominatim ─────────────────────────────────── */
+
+async function geocodeLocations(
+  people: PersonData[],
+): Promise<Record<string, [number, number] | null>> {
+  // Load existing cache
+  let cache: Record<string, [number, number] | null> = {};
+  try {
+    cache = JSON.parse(readFileSync(GEOCODE_CACHE, 'utf-8'));
+  } catch {
+    // no cache yet
+  }
+
+  // Collect all unique location strings
+  const locations = new Set<string>();
+  for (const p of people) {
+    if (p.birthplace) locations.add(p.birthplace);
+    if (p.deathPlace) locations.add(p.deathPlace);
+    if (p.burial) locations.add(p.burial);
+    if (p.residence) locations.add(p.residence);
+    if (p.immigration) locations.add(p.immigration);
+    if (p.emigration) locations.add(p.emigration);
+    for (const sp of p.spouses) {
+      if (!sp.marriageDate) continue;
+      const yearMatch = sp.marriageDate.match(/(\d{4})/);
+      if (yearMatch) {
+        const afterYear = sp.marriageDate
+          .slice(sp.marriageDate.indexOf(yearMatch[1]) + 4)
+          .replace(/^[,\s]+/, '');
+        if (afterYear) locations.add(afterYear);
+      }
+    }
+  }
+
+  // Find locations not yet cached
+  const uncached = Array.from(locations).filter(loc => !(loc in cache));
+  if (uncached.length > 0) {
+    console.log(`\nGeocoding ${uncached.length} new locations (${locations.size} total)...`);
+    for (const loc of uncached) {
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(loc)}&format=json&limit=1`;
+        const res = await fetch(url, {
+          headers: { 'User-Agent': 'ancestry-toolkit/1.0 (personal genealogy project)' },
+        });
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          cache[loc] = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+          console.log(`  ${loc} -> [${cache[loc]![0].toFixed(4)}, ${cache[loc]![1].toFixed(4)}]`);
+        } else {
+          cache[loc] = null;
+          console.warn(`  ${loc} -> NOT FOUND`);
+        }
+        // Rate limit: 1 request per second per Nominatim policy
+        await new Promise(r => setTimeout(r, 1100));
+      } catch (err) {
+        cache[loc] = null;
+        console.warn(`  ${loc} -> ERROR: ${err}`);
+      }
+    }
+
+    // Write updated cache back
+    writeFileSync(GEOCODE_CACHE, JSON.stringify(cache, null, 2));
+    console.log(`Geocode cache updated: ${GEOCODE_CACHE}`);
+  } else {
+    console.log(`\nGeocoding: all ${locations.size} locations cached`);
+  }
+
+  // Return only the locations that were requested (not the full cache which may have stale entries)
+  const result: Record<string, [number, number] | null> = {};
+  for (const loc of locations) {
+    result[loc] = cache[loc] ?? null;
+  }
+  return result;
+}
 
 function parseMediaIndex(): MediaEntry[] {
   if (!existsSync(MEDIA_INDEX)) return [];
@@ -420,7 +496,10 @@ async function main() {
     // no translations found, that's fine
   }
 
-  const output = { people, media: filteredMedia, sources, stats, report, translations, immigrationStories, config: siteConfig };
+  // Geocode locations for the map page
+  const geocodedLocations = await geocodeLocations(people);
+
+  const output = { people, media: filteredMedia, sources, stats, report, translations, immigrationStories, config: siteConfig, geocodedLocations };
 
   mkdirSync(dirname(OUTPUT), { recursive: true });
   const tmpFile = join(dirname(OUTPUT), '.site-data.json.tmp');

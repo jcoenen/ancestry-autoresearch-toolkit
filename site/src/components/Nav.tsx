@@ -14,11 +14,13 @@ const links = [
 
 const exploreLinks = [
   { to: '/timeline', label: 'Timeline' },
+  { to: '/map', label: 'Family Map' },
   { to: '/stats', label: 'Statistics' },
   { to: '/on-this-day', label: 'On This Day' },
   { to: '/immigration', label: 'Immigration Stories' },
   { to: '/research-gaps', label: 'Research Gaps' },
   { to: '/updates', label: "What's New" },
+  { to: '/features', label: 'Features Guide' },
 ]
 
 export default function Nav() {

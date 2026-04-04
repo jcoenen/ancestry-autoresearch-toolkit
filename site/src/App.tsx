@@ -19,6 +19,8 @@ import ImmigrationPage from './pages/ImmigrationPage'
 import SearchPage from './pages/SearchPage'
 import UpdatesPage from './pages/UpdatesPage'
 import VerticalTreePrototypes from './pages/VerticalTreePrototypes'
+import FamilyMapPage from './pages/FamilyMapPage'
+import FeaturesPage from './pages/FeaturesPage'
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -47,7 +49,9 @@ function App() {
           <Route path="/on-this-day" element={<OnThisDayPage />} />
           <Route path="/research-gaps" element={<ResearchGapsPage />} />
           <Route path="/immigration" element={<ImmigrationPage />} />
+          <Route path="/map" element={<FamilyMapPage />} />
           <Route path="/updates" element={<UpdatesPage />} />
+          <Route path="/features" element={<FeaturesPage />} />
           <Route path="/theme-mockups" element={<ThemeMockups />} />
         </Routes>
       </ErrorBoundary>

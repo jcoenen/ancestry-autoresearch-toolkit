@@ -21,6 +21,7 @@ One toolkit, multiple family projects. Each family gets its own repo with this t
 - **Person pages** — biography, vital information, source citations, media gallery per person
 - **Source browser** — searchable/filterable table of all sources with full text and extracted facts
 - **Media gallery** — gravestones, portraits, newspaper clippings, documents
+- **Family Map** — full-screen interactive map showing family events geographically. Marker clustering from world to street level. Birth, death, marriage, burial, residence, immigration, and emigration events with color-coded markers. Migration path arcs connecting birthplace to death place. Time period slider, decade-by-decade animation, heat map mode. Family line and event type filters. Build-time geocoding via Nominatim with editable cache
 - **Timeline** — chronological events across all people
 - **On This Day** — daily family history highlights (births, deaths, marriages, immigration, military, baptisms, and more)
 - **Statistics** — people count, source count, generations traced, family lines
@@ -257,6 +258,7 @@ VITE_MEDIA_BASE_URL="https://your-r2-bucket.r2.dev/" npm run build
 - **Vault**: Markdown + YAML frontmatter (Obsidian-compatible)
 - **Site**: React 19 + Vite 8 + TypeScript + Tailwind CSS 4
 - **Tree visualization**: React Flow
+- **Maps**: Leaflet + react-leaflet + leaflet.markercluster + leaflet.heat
 - **Markdown rendering**: react-markdown + remark-gfm
 - **Build scripts**: tsx (TypeScript execution)
 - **Validation**: Custom TypeScript validator

@@ -774,5 +774,26 @@
     "oldestRecord": "1795",
     "generationsTraced": 6,
     "rootPersonId": "I1"
+  },
+  "geocodedLocations": {
+    "Green Bay, WI": [44.5133, -88.0133],
+    "Appleton, WI": [44.2619, -88.4154],
+    "De Pere, WI": [44.4489, -88.0601],
+    "Oshkosh, WI": [44.0247, -88.5426],
+    "Madison, WI": [43.0731, -89.4012],
+    "Milwaukee, WI": [43.0389, -87.9065],
+    "Holland, MI": [42.7876, -86.1089],
+    "Chicago, IL": [41.8781, -87.6298],
+    "Zeeland, Netherlands": [51.5017, 3.8414],
+    "Leiden, Netherlands": [52.1601, 4.4970],
+    "Friesland, Netherlands": [53.1642, 5.7817],
+    "Groningen, Netherlands": [53.2194, 6.5665],
+    "Bavaria, Germany": [48.7904, 11.4979],
+    "County Cork, Ireland": [51.8985, -8.4756],
+    "France": [46.6034, 1.8883],
+    "Woodlawn Cemetery": [44.5020, -88.0050],
+    "Calvary Cemetery": [44.5180, -88.0370],
+    "Highland Memorial Park": [44.2550, -88.4100],
+    "Meuse-Argonne American Cemetery": [49.3384, 5.0931]
   }
 }
