@@ -22,14 +22,13 @@ export interface GapData {
   unverifiedOcr: SourceEntry[]
   untranslated: SourceEntry[]
   completeness: number
-  // Document completeness (optional for backwards compatibility)
-  missingObituary?: Person[]
-  missingGravestone?: Person[]
-  missingDeathCert?: Person[]
-  missingBirthCert?: Person[]
-  missingBaptism?: Person[]
-  missingMarriageCert?: Person[]
-  missingPhoto?: Person[]
+  missingObituary: Person[]
+  missingGravestone: Person[]
+  missingDeathCert: Person[]
+  missingBirthCert: Person[]
+  missingBaptism: Person[]
+  missingMarriageCert: Person[]
+  missingPhoto: Person[]
 }
 
 /** Research suggestions keyed by gap type */
