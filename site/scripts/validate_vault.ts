@@ -285,6 +285,21 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
       );
     }
 
+    // Check that born/died are strings — unquoted ISO dates (e.g. born: 1824-10-16) are parsed
+    // as JavaScript Date objects by the YAML parser, which crashes the site at runtime.
+    if (fm.born != null && typeof fm.born !== 'string') {
+      result.errors.push(
+        `people/${file}: "born" is a ${fm.born instanceof Date ? 'Date object' : typeof fm.born} (value: ${fm.born}) — must be a quoted string. ` +
+        `Unquoted ISO dates crash the site. Fix: born: "${fm.born instanceof Date ? fm.born.toISOString().split('T')[0] : fm.born}"`
+      );
+    }
+    if (fm.died != null && typeof fm.died !== 'string') {
+      result.errors.push(
+        `people/${file}: "died" is a ${fm.died instanceof Date ? 'Date object' : typeof fm.died} (value: ${fm.died}) — must be a quoted string. ` +
+        `Unquoted ISO dates crash the site. Fix: died: "${fm.died instanceof Date ? fm.died.toISOString().split('T')[0] : fm.died}"`
+      );
+    }
+
     // Check that every source_id references an existing source file
     if (Array.isArray(fm.sources)) {
       for (const srcId of fm.sources) {
@@ -388,13 +403,21 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
         result.errors.push(`people/${file}: mother "${fm.mother}" does not exist in the vault`);
       }
     }
-    for (const sp of (fm.spouses || []) as Array<{ id?: string }>) {
+    for (const sp of (fm.spouses || []) as Array<{ id?: string; married?: unknown }>) {
       if (sp.id) {
         if (!GEDCOM_ID_PATTERN.test(String(sp.id))) {
           result.errors.push(`people/${file}: spouse id "${sp.id}" is not a valid GEDCOM ID`);
         } else if (!allGedcomIds.has(String(sp.id))) {
           result.errors.push(`people/${file}: spouse "${sp.id}" does not exist in the vault`);
         }
+      }
+      // Check that married date is a string — unquoted integers (e.g. married: 1774) are parsed
+      // as numbers by the YAML parser, which crashes the site at runtime.
+      if (sp.married != null && typeof sp.married !== 'string') {
+        result.errors.push(
+          `people/${file}: spouse "married" is a ${typeof sp.married} (value: ${sp.married}) — must be a quoted string. ` +
+          `Fix: married: "${sp.married}"`
+        );
       }
     }
     for (const child of (fm.children || []) as Array<string | { id?: string }>) {
