@@ -181,15 +181,22 @@ function CompletenessCard({ person, sourceCount }: { person: Person; sourceCount
 
 /* ── Mini Family Tree ────────────────────────────────────────── */
 
+function genderColor(person?: Person | null): 'blue' | 'pink' | undefined {
+  if (person?.gender === 'M') return 'blue'
+  if (person?.gender === 'F') return 'pink'
+  return undefined
+}
+
 function MiniPersonChip({ person, name, role, color }: {
   person?: Person | null
   name: string
   role: string
   color?: 'blue' | 'pink'
 }) {
-  const cls = color === 'blue'
+  const c = color ?? genderColor(person)
+  const cls = c === 'blue'
     ? 'bg-blue-50 border-blue-200 text-blue-800'
-    : color === 'pink'
+    : c === 'pink'
     ? 'bg-pink-50 border-pink-200 text-pink-800'
     : 'bg-stone-50 border-stone-200 text-stone-700'
   const inner = (
@@ -240,20 +247,37 @@ function MiniTree({ person }: { person: Person }) {
   const familyUnits = spouses.map((sp, i) => ({
     spouse: sp,
     spousePerson: sp.id ? allPeople.find(p => p.id === sp.id) ?? null : null,
-    children: childrenBySpouse.get(i) ?? [],
+    children: [...(childrenBySpouse.get(i) ?? [])],
   }))
 
-  // For single spouse, fold unattributed children into the one group
-  let remainingChildren = unattributedChildren
-  if (familyUnits.length === 1 && unattributedChildren.length > 0) {
-    familyUnits[0].children = [...familyUnits[0].children, ...unattributedChildren]
-    remainingChildren = []
+  // Fallback: match unattributed children to spouses by last name
+  let remainingChildren = [...unattributedChildren]
+  if (remainingChildren.length > 0 && familyUnits.length > 0) {
+    const stillUnmatched: typeof resolvedChildren = []
+    for (const child of remainingChildren) {
+      const childName = child.person?.name || child.name
+      const childLast = childName.trim().split(/\s+/).pop()?.toLowerCase() || ''
+      let matched = false
+      if (childLast && familyUnits.length > 1) {
+        for (const unit of familyUnits) {
+          const spLast = unit.spouse.name.trim().split(/\s+/).pop()?.toLowerCase() || ''
+          if (spLast && childLast === spLast) {
+            unit.children.push(child)
+            matched = true
+            break
+          }
+        }
+      }
+      if (!matched) {
+        if (familyUnits.length === 1) {
+          familyUnits[0].children.push(child)
+        } else {
+          stillUnmatched.push(child)
+        }
+      }
+    }
+    remainingChildren = stillUnmatched
   }
-
-  const defaultSpouseColor: 'blue' | 'pink' =
-    person.gender === 'M' ? 'pink' : person.gender === 'F' ? 'blue' : 'pink'
-  const getSpouseColor = (sp: Person | null): 'blue' | 'pink' =>
-    sp?.gender === 'M' ? 'blue' : sp?.gender === 'F' ? 'pink' : defaultSpouseColor
 
   const singleSpouse = familyUnits.length === 1
   const multipleSpouses = familyUnits.length > 1
@@ -302,7 +326,6 @@ function MiniTree({ person }: { person: Person }) {
                   role={familyUnits[0].spouse.marriageDate
                     ? `Spouse (m. ${familyUnits[0].spouse.marriageDate})`
                     : 'Spouse'}
-                  color={getSpouseColor(familyUnits[0].spousePerson)}
                 />
               </div>
               {familyUnits[0].children.length > 0 && (
@@ -326,62 +349,38 @@ function MiniTree({ person }: { person: Person }) {
               {/* ── Person centered (multiple or no spouse) ── */}
               {personChip}
 
-              {/* ── Multiple spouse family units ── */}
+              {/* ── Multiple spouse family units — stacked cards ── */}
               {multipleSpouses && (
-                <>
-                  <div className="w-px h-4 bg-stone-300 my-0.5" />
-                  <div className="inline-flex justify-center gap-0">
-                    {familyUnits.map((unit, i) => {
-                      const isFirst = i === 0
-                      const isLast = i === familyUnits.length - 1
-                      return (
-                        <div key={i} className="flex flex-col items-center px-3 min-w-[110px]">
-                          {/* Branch connector: horizontal bar + vertical drop */}
-                          <div className="relative w-full h-4">
-                            <div
-                              className="absolute top-0 h-px bg-stone-300"
-                              style={{
-                                left: isFirst ? '50%' : 0,
-                                right: isLast ? '50%' : 0,
-                              }}
-                            />
-                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-full bg-stone-300" />
-                          </div>
-
-                          {/* Spouse chip with marriage indicator */}
-                          <div className="flex items-center gap-0">
-                            {marriageConn('w-3')}
+                <div className="w-full mt-3 space-y-2">
+                  {familyUnits.map((unit, i) => (
+                    <div key={i} className="rounded-md border border-stone-200 bg-stone-50/50 p-3">
+                      {/* Spouse row */}
+                      <div className="flex items-center gap-0 flex-wrap">
+                        {marriageConn('w-5')}
+                        <MiniPersonChip
+                          person={unit.spousePerson}
+                          name={unit.spouse.name}
+                          role={unit.spouse.marriageDate
+                            ? `Spouse (m. ${unit.spouse.marriageDate})`
+                            : 'Spouse'}
+                        />
+                      </div>
+                      {/* Children for this union */}
+                      {unit.children.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2 ml-7">
+                          {unit.children.map(child => (
                             <MiniPersonChip
-                              person={unit.spousePerson}
-                              name={unit.spouse.name}
-                              role={unit.spouse.marriageDate
-                                ? `m. ${unit.spouse.marriageDate}`
-                                : 'Spouse'}
-                              color={getSpouseColor(unit.spousePerson)}
+                              key={child.id || child.name}
+                              person={child.person}
+                              name={child.person?.name || child.name}
+                              role="Child"
                             />
-                          </div>
-
-                          {/* Children for this union */}
-                          {unit.children.length > 0 && (
-                            <>
-                              <div className="w-px h-3 bg-stone-300 my-0.5" />
-                              <div className="flex flex-wrap gap-1.5 justify-center">
-                                {unit.children.map(child => (
-                                  <MiniPersonChip
-                                    key={child.id || child.name}
-                                    person={child.person}
-                                    name={child.person?.name || child.name}
-                                    role="Child"
-                                  />
-                                ))}
-                              </div>
-                            </>
-                          )}
+                          ))}
                         </div>
-                      )
-                    })}
-                  </div>
-                </>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
 
               {/* ── Unattributed children (no spouse link) ── */}
