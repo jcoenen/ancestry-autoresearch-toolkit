@@ -306,7 +306,6 @@ function CompletenessCard({ person, sourceCount }: { person: Person; sourceCount
     { label: 'Biography', ok: !!(person.biography && person.biography.trim()) },
   ]
   const filled = fields.filter(f => f.ok).length
-  if (filled === fields.length) return null
   const pct = Math.round((filled / fields.length) * 100)
   return (
     <section className="mb-6 print-hide">
