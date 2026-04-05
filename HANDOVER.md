@@ -2,11 +2,19 @@
 
 ## What Was Done
 
-### Session 21: Always-visible Data Completeness Card
+### Session 21: Person page Family section consolidation + completeness card fix
 
-- Removed the early-return guard in `CompletenessCard` (`PersonPage.tsx`) that hid the card when all 7 fields were filled
-- The card now renders for every non-private person, including those at 100% — previously they saw nothing
-- 1-line change, 194 tests passing, pushed as `6075aec`
+**Family section replaced by unified visual tree (`PersonPage.tsx`):**
+- `MiniTree` component now IS the Family section — renders with an `h2 Family` heading in the same position, replacing the old text-based parents/spouse/children layout
+- All children now shown — removed the `MAX_SHOWN=5` cap and "+N more" overflow badge
+- Spouses added to the visual tree: shown between the person node and children, with marriage date in the role label (e.g. "Spouse (m. 1880)")
+- Removed `FamilyUnit`, `FamilyUnits`, `CollapsibleChildren`, `ChildCard` components and unused `ChildRef`/`SpouseRef` imports (~170 lines deleted)
+- Pushed as `4d3c206`
+
+**Data Completeness card always visible:**
+- Removed the early-return guard that hid the card when all 7 fields were filled
+- The card now renders for every non-private person, including those at 100%
+- Pushed as `6075aec`
 
 ---
 
