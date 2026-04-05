@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { usePeople, useData, extractYear, confidenceColor } from '../useData'
 import { generateResearchPlan, SUGGESTIONS } from '../../scripts/lib/research-plan'
 import FamilyFilterDropdown from '../components/FamilyFilterDropdown'
-import type { Person, SourceEntry } from '../types'
+import type { Person, SourceEntry, MediaEntry } from '../types'
 import type { GapData } from '../../scripts/lib/research-plan'
 
 /* ── Helpers ──────────────────────────────────────────────────── */
@@ -209,6 +209,28 @@ export default function ResearchGapsPage() {
     }
     const completeness = totalFields > 0 ? Math.round((filledCount / totalFields) * 100) : 0
 
+    // Document completeness — cross-reference person source IDs with source entries
+    const sourceMap = new Map<string, SourceEntry>()
+    for (const s of sources) sourceMap.set(s.id, s)
+
+    function hasSourceType(p: Person, types: string[]): boolean {
+      return p.sources.some(sid => {
+        const s = sourceMap.get(sid)
+        return s !== undefined && types.includes(s.type)
+      })
+    }
+    function hasMediaType(p: Person, types: string[]): boolean {
+      return (p.media as MediaEntry[]).some(m => types.includes(m.type))
+    }
+
+    const missingObituary = pub.filter(p => !hasSourceType(p, ['obituary']))
+    const missingGravestone = pub.filter(p => !hasSourceType(p, ['cemetery']) && !hasMediaType(p, ['gravestone', 'tombstone']))
+    const missingDeathCert = pub.filter(p => !hasSourceType(p, ['death_certificate']))
+    const missingBirthCert = pub.filter(p => !hasSourceType(p, ['birth_certificate']))
+    const missingBaptism = pub.filter(p => !hasSourceType(p, ['baptism', 'church']))
+    const missingMarriageCert = pub.filter(p => !hasSourceType(p, ['marriage_certificate', 'marriage']))
+    const missingPhoto = pub.filter(p => !hasMediaType(p, ['photo', 'portrait']))
+
     return {
       total,
       stubAndLow, stubs, low,
@@ -217,6 +239,8 @@ export default function ResearchGapsPage() {
       noSources, noMedia, noBio,
       unverifiedOcr, untranslated,
       completeness,
+      missingObituary, missingGravestone, missingDeathCert,
+      missingBirthCert, missingBaptism, missingMarriageCert, missingPhoto,
     }
   }, [people, sources])
 
@@ -281,7 +305,7 @@ export default function ResearchGapsPage() {
       </div>
 
       {/* Progress overview */}
-      <div className="rounded-lg border border-stone-200 bg-white p-5 sm:p-6 mb-8">
+      <div className="rounded-lg border border-stone-200 bg-white p-5 sm:p-6 mb-6">
         <h2 className="text-sm font-semibold text-stone-500 uppercase tracking-wide mb-4">Field Coverage</h2>
         <GapBar have={gaps.total - gaps.missingBorn.length} total={gaps.total} label="Birth dates" />
         <GapBar have={gaps.total - gaps.missingDied.length} total={gaps.total} label="Death dates" />
@@ -289,6 +313,18 @@ export default function ResearchGapsPage() {
         <GapBar have={gaps.total - gaps.missingParents.length} total={gaps.total} label="At least one parent" />
         <GapBar have={gaps.total - gaps.noSources.length} total={gaps.total} label="Has sources" />
         <GapBar have={gaps.total - gaps.noBio.length} total={gaps.total} label="Has biography" />
+      </div>
+
+      {/* Document coverage */}
+      <div className="rounded-lg border border-stone-200 bg-white p-5 sm:p-6 mb-8">
+        <h2 className="text-sm font-semibold text-stone-500 uppercase tracking-wide mb-4">Document Coverage</h2>
+        <GapBar have={gaps.total - gaps.missingObituary.length} total={gaps.total} label="Obituary" />
+        <GapBar have={gaps.total - gaps.missingGravestone.length} total={gaps.total} label="Gravestone record" />
+        <GapBar have={gaps.total - gaps.missingDeathCert.length} total={gaps.total} label="Death certificate" />
+        <GapBar have={gaps.total - gaps.missingBirthCert.length} total={gaps.total} label="Birth certificate" />
+        <GapBar have={gaps.total - gaps.missingBaptism.length} total={gaps.total} label="Baptism / church record" />
+        <GapBar have={gaps.total - gaps.missingMarriageCert.length} total={gaps.total} label="Marriage certificate" />
+        <GapBar have={gaps.total - gaps.missingPhoto.length} total={gaps.total} label="Personal photo" />
       </div>
 
       {/* Priority research targets */}
@@ -401,6 +437,62 @@ export default function ResearchGapsPage() {
           <p className="text-sm text-stone-500">All people have biographies.</p>
         ) : (
           gaps.noBio.map(p => <PersonRow key={p.id} person={p} />)
+        )}
+      </Section>
+
+      <Section title="Missing Obituary" count={gaps.missingObituary.length} suggestions={SUGGESTIONS.missingObituary}>
+        {gaps.missingObituary.length === 0 ? (
+          <p className="text-sm text-stone-500">All people have an obituary source.</p>
+        ) : (
+          gaps.missingObituary.map(p => <PersonRow key={p.id} person={p} />)
+        )}
+      </Section>
+
+      <Section title="Missing Gravestone" count={gaps.missingGravestone.length} suggestions={SUGGESTIONS.missingGravestone}>
+        {gaps.missingGravestone.length === 0 ? (
+          <p className="text-sm text-stone-500">All people have a gravestone record or photo.</p>
+        ) : (
+          gaps.missingGravestone.map(p => <PersonRow key={p.id} person={p} />)
+        )}
+      </Section>
+
+      <Section title="Missing Death Certificate" count={gaps.missingDeathCert.length} suggestions={SUGGESTIONS.missingDeathCert}>
+        {gaps.missingDeathCert.length === 0 ? (
+          <p className="text-sm text-stone-500">All people have a death certificate source.</p>
+        ) : (
+          gaps.missingDeathCert.map(p => <PersonRow key={p.id} person={p} />)
+        )}
+      </Section>
+
+      <Section title="Missing Birth Certificate" count={gaps.missingBirthCert.length} suggestions={SUGGESTIONS.missingBirthCert}>
+        {gaps.missingBirthCert.length === 0 ? (
+          <p className="text-sm text-stone-500">All people have a birth certificate source.</p>
+        ) : (
+          gaps.missingBirthCert.map(p => <PersonRow key={p.id} person={p} />)
+        )}
+      </Section>
+
+      <Section title="Missing Baptism / Church Record" count={gaps.missingBaptism.length} suggestions={SUGGESTIONS.missingBaptism}>
+        {gaps.missingBaptism.length === 0 ? (
+          <p className="text-sm text-stone-500">All people have a baptism or church record source.</p>
+        ) : (
+          gaps.missingBaptism.map(p => <PersonRow key={p.id} person={p} />)
+        )}
+      </Section>
+
+      <Section title="Missing Marriage Certificate" count={gaps.missingMarriageCert.length} suggestions={SUGGESTIONS.missingMarriageCert}>
+        {gaps.missingMarriageCert.length === 0 ? (
+          <p className="text-sm text-stone-500">All people have a marriage certificate source.</p>
+        ) : (
+          gaps.missingMarriageCert.map(p => <PersonRow key={p.id} person={p} />)
+        )}
+      </Section>
+
+      <Section title="Missing Personal Photo" count={gaps.missingPhoto.length} suggestions={SUGGESTIONS.missingPhoto}>
+        {gaps.missingPhoto.length === 0 ? (
+          <p className="text-sm text-stone-500">All people have a personal photo.</p>
+        ) : (
+          gaps.missingPhoto.map(p => <PersonRow key={p.id} person={p} />)
         )}
       </Section>
     </div>

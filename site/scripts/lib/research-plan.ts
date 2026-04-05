@@ -22,6 +22,14 @@ export interface GapData {
   unverifiedOcr: SourceEntry[]
   untranslated: SourceEntry[]
   completeness: number
+  // Document completeness (optional for backwards compatibility)
+  missingObituary?: Person[]
+  missingGravestone?: Person[]
+  missingDeathCert?: Person[]
+  missingBirthCert?: Person[]
+  missingBaptism?: Person[]
+  missingMarriageCert?: Person[]
+  missingPhoto?: Person[]
 }
 
 /** Research suggestions keyed by gap type */
@@ -77,6 +85,42 @@ export const SUGGESTIONS: Record<string, string[]> = {
     'Use FamilySearch Wiki to identify the document language and find translation guides',
     'For common languages, volunteer translators are available at genealogy forums',
   ],
+  missingObituary: [
+    'Search Newspapers.com, Ancestry newspaper archives, and GenealogyBank',
+    'Check local library microfilm or digitized newspaper collections',
+    'Search the funeral home name (if known) — many post historical obituaries online',
+  ],
+  missingGravestone: [
+    'Search FindAGrave.com and BillionGraves — many gravestones are already photographed',
+    'Request a volunteer photo via FindAGrave if the stone exists but isn\'t photographed',
+    'Contact the cemetery office for burial records if no stone is visible',
+  ],
+  missingDeathCert: [
+    'Order from the state vital records office — typically $10-30 per certificate',
+    'Search Ancestry or FamilySearch for indexed death certificates (1900+)',
+    'Check county clerk records for older US deaths; parish burial registers for pre-civil-registration',
+  ],
+  missingBirthCert: [
+    'Order from the state vital records office — civil registration varies by state/year',
+    'Search FamilySearch and Ancestry for indexed birth records',
+    'For pre-1900 births, look for baptismal records as the equivalent',
+  ],
+  missingBaptism: [
+    'Search FamilySearch for church records in the person\'s known region',
+    'Contact the local parish directly — many have records dating to the 1600s',
+    'Check regional church archives (diocese, synod, classis) for consolidated records',
+  ],
+  missingMarriageCert: [
+    'Order from the state vital records office or county clerk',
+    'Search FamilySearch and Ancestry for indexed marriage records',
+    'Church marriage registers often predate civil registration — contact the parish',
+  ],
+  missingPhoto: [
+    'Check FindAGrave — memorial pages sometimes include portrait photos',
+    'Ask living relatives for scanned family photos',
+    'Search Ancestry member trees — relatives may have uploaded photos',
+    'Check historical society collections for community portraits',
+  ],
 }
 
 export function generateResearchPlan(gaps: GapData): string {
@@ -112,6 +156,13 @@ export function generateResearchPlan(gaps: GapData): string {
   }
   for (const p of gaps.noSources) addGap(p, 'no sources cited')
   for (const p of gaps.noBio) addGap(p, 'no biography')
+  for (const p of (gaps.missingObituary ?? [])) addGap(p, 'no obituary')
+  for (const p of (gaps.missingGravestone ?? [])) addGap(p, 'no gravestone record')
+  for (const p of (gaps.missingDeathCert ?? [])) addGap(p, 'no death certificate')
+  for (const p of (gaps.missingBirthCert ?? [])) addGap(p, 'no birth certificate')
+  for (const p of (gaps.missingBaptism ?? [])) addGap(p, 'no baptism/church record')
+  for (const p of (gaps.missingMarriageCert ?? [])) addGap(p, 'no marriage certificate')
+  for (const p of (gaps.missingPhoto ?? [])) addGap(p, 'no personal photo')
 
   // Sort by number of gaps descending
   const sorted = [...personGapMap.values()].sort((a, b) => b.gaps.length - a.gaps.length)

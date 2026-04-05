@@ -5,6 +5,10 @@ import { useData } from '../useData'
 const TYPE_LABELS: Record<string, string> = {
   obituary: 'Obituaries',
   cemetery: 'Cemetery / FindAGrave',
+  death_certificate: 'Death Certificates',
+  birth_certificate: 'Birth Certificates',
+  marriage_certificate: 'Marriage Certificates',
+  baptism: 'Baptism Records',
   church: 'Church Records',
   secondary: 'Secondary Sources',
   immigration: 'Immigration',
@@ -13,7 +17,7 @@ const TYPE_LABELS: Record<string, string> = {
   note: 'Family Knowledge / Notes',
 }
 
-const TYPE_ORDER = ['obituary', 'cemetery', 'church', 'secondary', 'immigration', 'military', 'census', 'note']
+const TYPE_ORDER = ['obituary', 'cemetery', 'death_certificate', 'birth_certificate', 'marriage_certificate', 'baptism', 'church', 'secondary', 'immigration', 'military', 'census', 'note']
 
 export default function SourcesPage() {
   const { sources } = useData()

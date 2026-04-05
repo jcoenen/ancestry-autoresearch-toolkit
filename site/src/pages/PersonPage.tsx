@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { usePersonBySlug, usePersonById, useData, usePeople, formatYear, confidenceColor, getSourceSlugById, MEDIA_BASE, extractYear } from '../useData'
-import type { Person } from '../types'
+import type { Person, SourceEntry } from '../types'
 import { useLightbox } from '../hooks/useLightbox'
 import Lightbox from '../components/Lightbox'
 import { buildGenderMap } from './VerticalTreePrototypes'
@@ -143,18 +143,49 @@ function isMissingValue(v: string | undefined | null): boolean {
   return s === '' || s === '—' || s === '-' || s === 'Unknown'
 }
 
-function CompletenessCard({ person, sourceCount }: { person: Person; sourceCount: number }) {
-  const fields = [
+function CompletenessCard({ person, personSources }: { person: Person; personSources: SourceEntry[] }) {
+  const hasSourceType = (types: string[]) => personSources.some(s => types.includes(s.type))
+  const hasMediaType = (types: string[]) => person.media.some(m => types.includes(m.type))
+
+  const bioFields = [
     { label: 'Birth date', ok: !!extractYear(person.born) },
     { label: 'Birthplace', ok: !isMissingValue(person.birthplace) },
     { label: 'Death date', ok: !!extractYear(person.died) },
     { label: 'Father', ok: !!(person.father || person.fatherName) },
     { label: 'Mother', ok: !!(person.mother || person.motherName) },
-    { label: 'Sources', ok: sourceCount > 0 },
+    { label: 'Sources', ok: personSources.length > 0 },
     { label: 'Biography', ok: !!(person.biography && person.biography.trim()) },
   ]
-  const filled = fields.filter(f => f.ok).length
-  const pct = Math.round((filled / fields.length) * 100)
+  const docFields = [
+    { label: 'Obituary', ok: hasSourceType(['obituary']) },
+    { label: 'Gravestone', ok: hasSourceType(['cemetery']) || hasMediaType(['gravestone', 'tombstone']) },
+    { label: 'Death cert', ok: hasSourceType(['death_certificate']) },
+    { label: 'Birth cert', ok: hasSourceType(['birth_certificate']) },
+    { label: 'Baptism', ok: hasSourceType(['baptism', 'church']) },
+    { label: 'Marriage cert', ok: hasSourceType(['marriage_certificate', 'marriage']) },
+    { label: 'Photo', ok: hasMediaType(['photo', 'portrait']) },
+  ]
+  const allFields = [...bioFields, ...docFields]
+  const filled = allFields.filter(f => f.ok).length
+  const pct = Math.round((filled / allFields.length) * 100)
+
+  function Chips({ fields }: { fields: { label: string; ok: boolean }[] }) {
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {fields.map(f => (
+          <span key={f.label} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+            f.ok
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-red-50 text-red-600 border-red-200'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${f.ok ? 'bg-emerald-500' : 'bg-red-400'}`} />
+            {f.label}
+          </span>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <section className="mb-6 print-hide">
       <div className="rounded-lg border border-stone-200 bg-white p-4">
@@ -162,17 +193,15 @@ function CompletenessCard({ person, sourceCount }: { person: Person; sourceCount
           <span className="text-xs font-semibold text-stone-400 uppercase tracking-wide">Data Completeness</span>
           <span className="text-sm font-bold text-stone-600">{pct}%</span>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {fields.map(f => (
-            <span key={f.label} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
-              f.ok
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : 'bg-red-50 text-red-600 border-red-200'
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${f.ok ? 'bg-emerald-500' : 'bg-red-400'}`} />
-              {f.label}
-            </span>
-          ))}
+        <div className="space-y-2.5">
+          <div>
+            <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide block mb-1.5">Biography</span>
+            <Chips fields={bioFields} />
+          </div>
+          <div>
+            <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide block mb-1.5">Key Documents</span>
+            <Chips fields={docFields} />
+          </div>
         </div>
       </div>
     </section>
@@ -621,7 +650,7 @@ export default function PersonPage() {
       )}
 
       {/* Completeness — only for non-private people */}
-      {!person.privacy && <CompletenessCard person={person} sourceCount={personSources.length} />}
+      {!person.privacy && <CompletenessCard person={person} personSources={personSources} />}
 
       {/* Vital Information */}
       {!person.privacy && (
