@@ -56,7 +56,7 @@ export const MONTH_NAMES = [
 ]
 
 export function parseFullDate(dateStr: string): { month: number; day: number; year: number } | null {
-  if (!dateStr || dateStr === 'Unknown' || dateStr === '\u2014' || dateStr.startsWith('~')) return null
+  if (!dateStr || typeof dateStr !== 'string' || dateStr === 'Unknown' || dateStr === '\u2014' || dateStr.startsWith('~')) return null
 
   // ISO: YYYY-MM-DD
   const iso = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
@@ -80,7 +80,7 @@ export function parseFullDate(dateStr: string): { month: number; day: number; ye
 }
 
 export function parseMarriageDate(dateStr: string): { month: number; day: number; year: number; location: string } | null {
-  if (!dateStr || dateStr.startsWith('~') || dateStr.includes('md]]')) return null
+  if (!dateStr || typeof dateStr !== 'string' || dateStr.startsWith('~') || dateStr.includes('md]]')) return null
 
   // ISO: YYYY-MM-DD with optional trailing location
   const iso = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})(.*)/)
@@ -118,7 +118,7 @@ export function parseMarriageDate(dateStr: string): { month: number; day: number
  * Returns null if no date with month+day can be parsed.
  */
 export function parseDateFromText(text: string): { month: number; day: number; year: number; remainder: string } | null {
-  if (!text || text === 'Unknown' || text === '\u2014' || text.startsWith('~')) return null
+  if (!text || typeof text !== 'string' || text === 'Unknown' || text === '\u2014' || text.startsWith('~')) return null
 
   // ISO: YYYY-MM-DD
   const iso = text.match(/(\d{4})-(\d{2})-(\d{2})/)

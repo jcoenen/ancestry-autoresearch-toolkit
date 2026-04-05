@@ -278,7 +278,7 @@ async function main() {
       ((fm.spouses || []) as SpouseFm[]).map(sp => ({
         id: sp.id ? String(sp.id) : '',
         name: sp.id ? (idToName.get(String(sp.id)) || '') : '',
-        marriageDate: sp.married || '',
+        marriageDate: sp.married != null ? String(sp.married) : '',
         link: '',
       }));
 
