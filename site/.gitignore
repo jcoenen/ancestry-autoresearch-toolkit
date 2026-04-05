@@ -17,3 +17,4 @@ src/data/site-data.json
 .idea
 .DS_Store
 *.sw?
+.vercel
