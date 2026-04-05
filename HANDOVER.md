@@ -2,16 +2,25 @@
 
 ## What Was Done
 
-### Session 22: Family mini-tree spouse layout upgrade
+### Session 22: Family mini-tree spouse layout + fixture data fix
 
-**Spouse(s) shown side-by-side with person in mini family tree (`PersonPage.tsx`):**
-- Single spouse: person and spouse rendered on the same horizontal row, connected by a double-line (═) marriage connector. Children appear below the couple.
-- Multiple spouses: person centered at top with a branching tree connector down to each spouse group. Each branch shows the spouse chip (with marriage date) and that union's children directly beneath — children are grouped under the correct parent via `spouseIndex`.
-- No spouse: person centered with children below (unchanged behavior).
-- Spouse chip colors are now gender-aware (blue for male, pink for female) instead of always pink.
-- Unattributed children (no `spouseIndex`) fold into a single-spouse group, or appear separately at the bottom for multi-spouse people.
-- Container has `overflow-x-auto` for wide multi-spouse layouts.
-- **State:** 194 tests passing, TypeScript clean, pushed as `90dc852`
+**Family mini-tree v1 (`90dc852`):**
+- Person + spouse side-by-side with double-line marriage connector
+- Multiple spouses: branching tree layout
+- Gender-aware spouse colors
+
+**Family mini-tree v2 — fixes (`b26fe2b`):**
+- `MiniPersonChip` now auto-detects color from person's `.gender` field (M=blue, F=pink) for ALL chips — parents, spouses, AND children — instead of hardcoded colors
+- Multiple spouses: switched from confusing branch layout to stacked card layout — each marriage is its own bordered section with spouse + children grouped together
+- Added last-name fallback: when children lack `spouseIndex`, their last name is matched against spouse last names to auto-group them (e.g., "Gerard Baehman" groups under "Kenneth Baehman")
+- Single spouse: person + spouse side-by-side, all children below (unchanged)
+
+**Fixture data loading fix (`site/package.json`):**
+- `predev` script changed from `test -f` (file exists) to `grep -q '"id"'` (has actual data)
+- This was causing empty `site-data.json` every session — the file existed but was empty, so fixture data never got copied in
+- Added multi-spouse test family (Mary Monica Bohman, 2 spouses, 9 children) to `fixture-data.json`
+
+- **State:** 194 tests passing, TypeScript clean, pushed as `b26fe2b`
 
 ---
 
