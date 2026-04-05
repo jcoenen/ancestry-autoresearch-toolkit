@@ -1,7 +1,9 @@
+import { useMemo } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Link } from 'react-router-dom'
-import { useReport } from '../useData'
+import { useReport, usePeople, useSources } from '../useData'
+import { autolinkMarkdown } from '../autolink'
 import type { Components } from 'react-markdown'
 
 const components: Components = {
@@ -60,16 +62,23 @@ const components: Components = {
 
 export default function ReportPage() {
   const report = useReport()
+  const people = usePeople()
+  const sources = useSources()
+
+  const linkedReport = useMemo(
+    () => report ? autolinkMarkdown(report, people, sources) : '',
+    [report, people, sources],
+  )
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
       <div className="mb-8">
         <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded">Full Report</span>
       </div>
-      {report ? (
+      {linkedReport ? (
         <article>
           <Markdown remarkPlugins={[remarkGfm]} components={components}>
-            {report}
+            {linkedReport}
           </Markdown>
         </article>
       ) : (

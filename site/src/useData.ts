@@ -1,5 +1,5 @@
 import rawData from './data/site-data.json'
-import type { SiteData, Person } from './types'
+import type { SiteData, Person, SourceEntry } from './types'
 import type { SiteConfig } from './siteConfig'
 
 const data = rawData as unknown as SiteData
@@ -29,6 +29,10 @@ export function useTranslation(slug: string): string {
 
 export function usePeople(): Person[] {
   return data.people
+}
+
+export function useSources(): SourceEntry[] {
+  return data.sources
 }
 
 export function usePersonBySlug(slug: string): Person | undefined {
