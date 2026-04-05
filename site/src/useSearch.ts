@@ -9,6 +9,7 @@ export interface SearchDocument {
   title: string
   subtitle: string
   link: string
+  marriedName?: string[]
   // Indexed fields
   searchName: string
   searchFamily: string
@@ -61,6 +62,7 @@ export function useSearch() {
               p.family,
             ].filter(Boolean).join(' \u00b7 '),
         link: `/people/${p.slug}`,
+        marriedName: p.marriedName && p.marriedName.length > 0 ? p.marriedName : undefined,
         searchName: [p.name, p.nickname, ...(p.marriedName || []), ...(p.alsoKnownAs || [])].filter(Boolean).join(' '),
         searchFamily: p.family || '',
         searchBirthplace: p.privacy ? '' : (p.birthplace || ''),

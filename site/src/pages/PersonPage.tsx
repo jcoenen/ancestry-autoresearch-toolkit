@@ -617,6 +617,12 @@ export default function PersonPage() {
         <div>
           <h1 className="text-3xl font-bold text-stone-800">{person.name}</h1>
           {years && <p className="text-lg text-stone-500 mt-1">{years}</p>}
+          {person.marriedName && person.marriedName.length > 0 && (
+            <p className="text-sm text-stone-400 mt-1">
+              <span className="font-medium">Married name{person.marriedName.length > 1 ? 's' : ''}:</span>{' '}
+              {person.marriedName.join(' · ')}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button

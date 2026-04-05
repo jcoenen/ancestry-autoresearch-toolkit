@@ -80,6 +80,12 @@ function ResultCard({ result }: { result: SearchResult }) {
           <div className="text-xs text-stone-400 mt-0.5">
             {result.item.subtitle}
           </div>
+          {result.item.marriedName && result.item.marriedName.length > 0 && (
+            <div className="text-xs text-stone-400 mt-0.5">
+              <span className="text-stone-500">Married name{result.item.marriedName.length > 1 ? 's' : ''}:</span>{' '}
+              {result.item.marriedName.join(' · ')}
+            </div>
+          )}
         </div>
         <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0 ${
           result.item.type === 'person'
