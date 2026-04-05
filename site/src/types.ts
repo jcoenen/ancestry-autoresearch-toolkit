@@ -49,6 +49,8 @@ export interface Person {
   baptized: string;
   christened: string;
   nickname: string;
+  marriedName: string[];
+  alsoKnownAs: string[];
   education: string;
   residence: string;
   familySearchId: string;

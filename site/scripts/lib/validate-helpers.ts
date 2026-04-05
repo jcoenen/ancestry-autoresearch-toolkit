@@ -17,6 +17,7 @@ export const ALLOWED_SOURCE_TYPES = [
 
 export const ALLOWED_CONFIDENCE = ['high', 'moderate', 'low', 'stub', 'speculative'];
 export const ALLOWED_RELIABILITY = ['high', 'moderate', 'low'];
+export const ALLOWED_GENDER = ['M', 'F'];
 
 export const SOURCE_ID_PATTERN = /^SRC-(OBIT|CEM|CHR|SEC|IMM|MIL|CENS|NOTE|CERT)-\d{3}$/;
 export const GEDCOM_ID_PATTERN = /^I\d+$/;
@@ -48,6 +49,7 @@ export const RECOGNIZED_VITAL_FIELDS = [
   'Christened',
   'Nickname',
   'Also Known As',
+  'Married Name',
   'Education',
   'Residence',
   'FamilySearch ID',

@@ -71,6 +71,8 @@ interface PersonData {
   baptized: string;
   christened: string;
   nickname: string;
+  marriedName: string[];
+  alsoKnownAs: string[];
   education: string;
   residence: string;
   familySearchId: string;
@@ -111,6 +113,11 @@ interface SourceEntry {
   language: string;
   media: MediaEntry[];
   _mediaRefs: string[];
+}
+
+function splitVitalList(val: string | undefined): string[] {
+  if (!val || val.trim() === '—') return []
+  return val.split(',').map(s => s.trim()).filter(Boolean)
 }
 
 const SOURCES_DIR = resolve(ROOT, 'sources');
@@ -335,7 +342,9 @@ async function main() {
       confirmation: isPrivate ? '' : (vitals['Confirmation'] || ''),
       baptized: isPrivate ? '' : (vitals['Baptized'] || ''),
       christened: isPrivate ? '' : (vitals['Christened'] || ''),
-      nickname: isPrivate ? '' : (vitals['Nickname'] || vitals['Also Known As'] || ''),
+      nickname: vitals['Nickname'] || '',
+      marriedName: splitVitalList(vitals['Married Name']),
+      alsoKnownAs: splitVitalList(vitals['Also Known As']),
       education: isPrivate ? '' : (vitals['Education'] || ''),
       residence: isPrivate ? '' : (vitals['Residence'] || ''),
       familySearchId: isPrivate ? '' : (vitals['FamilySearch ID'] || ''),

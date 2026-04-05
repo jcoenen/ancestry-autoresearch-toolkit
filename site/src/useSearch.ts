@@ -61,7 +61,7 @@ export function useSearch() {
               p.family,
             ].filter(Boolean).join(' \u00b7 '),
         link: `/people/${p.slug}`,
-        searchName: p.name,
+        searchName: [p.name, p.nickname, ...(p.marriedName || []), ...(p.alsoKnownAs || [])].filter(Boolean).join(' '),
         searchFamily: p.family || '',
         searchBirthplace: p.privacy ? '' : (p.birthplace || ''),
         searchOccupation: p.privacy ? '' : (p.occupation || ''),

@@ -6,6 +6,7 @@ import {
   ALLOWED_SOURCE_TYPES,
   ALLOWED_CONFIDENCE,
   ALLOWED_RELIABILITY,
+  ALLOWED_GENDER,
   SOURCE_ID_PATTERN,
   GEDCOM_ID_PATTERN,
   isRecognizedVitalField,
@@ -304,6 +305,7 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
   const REQUIRED_PERSON_FIELDS = [
     'type',
     'name',
+    'gender',
     'family',
     'gedcom_id',
     'privacy',
@@ -351,6 +353,13 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
       } else {
         gedcomIds.set(gid, `people/${file}`);
       }
+    }
+
+    // Check gender value
+    if (fm.gender && !ALLOWED_GENDER.includes(fm.gender)) {
+      result.errors.push(
+        `people/${file}: gender "${fm.gender}" is not in allowed values: ${ALLOWED_GENDER.join(', ')}`
+      );
     }
 
     // Check confidence
@@ -518,6 +527,19 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
           result.errors.push(`people/${file}: child id "${childId}" is not a valid GEDCOM ID`);
         } else if (!allGedcomIds.has(String(childId))) {
           result.errors.push(`people/${file}: child "${childId}" does not exist in the vault`);
+        }
+      }
+    }
+
+    // Check that married women have a Married Name vital field
+    if (fm.gender === 'F' && !fm.privacy && fm.confidence !== 'stub') {
+      const spouseCount = Array.isArray(fm.spouses) ? fm.spouses.length : 0;
+      if (spouseCount > 0) {
+        const hasMarriedName = vitalTable.some(([f, v]) => f === 'Married Name' && v && v.trim() !== '—');
+        if (!hasMarriedName) {
+          result.errors.push(
+            `people/${file}: married female missing "Married Name" in Vital Information table — required for GEDCOM export and search`
+          );
         }
       }
     }

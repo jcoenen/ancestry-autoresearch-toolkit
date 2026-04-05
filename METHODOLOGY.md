@@ -172,8 +172,24 @@ The `## Vital Information` table Field column MUST use these exact names. The we
 | `Siblings` | Siblings |
 | `Religion` | Religious affiliation |
 | `Occupation` | Occupation |
+| `Nickname` | Common name or familiar name — maps to GEDCOM `NICK` |
+| `Married Name` | Full name after marriage, e.g. `Mary Coenen` — **required for all non-stub married females**; maps to GEDCOM `NAME TYPE married`. Comma-separate multiple values if remarried: `Mary Coenen, Mary Smith` |
+| `Also Known As` | Alternate spellings, anglicizations, or name-change variants, comma-separated — maps to GEDCOM `NAME TYPE aka`. Example: `Castonguay, Castongia` |
 
 **DO NOT use:** `Marriage 1/2/3` (use `Spouse (1st/2nd/3rd)`), `Children (w/ Name)` (use `Children` or `Children (Nth marriage)`), or any other invented field names.
+
+### Name Variants and GEDCOM Mapping
+
+The vault stores all name variants in the `## Vital Information` table. These map to GEDCOM name records:
+
+| Vault field | GEDCOM tag | Notes |
+|---|---|---|
+| `name` (frontmatter) | `1 NAME / 2 TYPE birth` | Primary name — maiden name for women |
+| `Nickname` | `2 NICK` (subordinate to NAME) | Optional |
+| `Married Name` | `1 NAME / 2 TYPE married` | Required for non-stub married females |
+| `Also Known As` | `1 NAME / 2 TYPE aka` | Optional; covers anglicizations and spelling variants |
+
+All name variant fields are indexed by the search engine so persons can be found by any name they were known by.
 
 ## Media Rules
 
