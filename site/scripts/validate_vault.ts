@@ -20,6 +20,68 @@ import {
 
 // VAULT_ROOT env var points to the vault directory (e.g. Coenen_Genealogy/).
 // Falls back to ../../ for backward compatibility when site/ is inside the vault.
+
+// ---------------------------------------------------------------------------
+// Media path rules — per METHODOLOGY.md "Media Rules"
+// Every media ref must be "subfolder/filename.ext". The subfolder is determined
+// by the filename TYPE prefix (e.g. CEM_ → gravestones/, POR_ → portraits/).
+// Refs must also exist in _Media_Index.md or the image will never render on site.
+// ---------------------------------------------------------------------------
+const MEDIA_TYPE_TO_SUBFOLDER: Record<string, string> = {
+  CEM:  'gravestones',
+  POR:  'portraits',
+  NEWS: 'newspapers',
+  DOC:  'documents',
+  GRP:  'group',
+  MISC: 'misc',
+};
+const VALID_MEDIA_SUBFOLDERS = new Set(Object.values(MEDIA_TYPE_TO_SUBFOLDER));
+
+/**
+ * Validates a single media ref path against METHODOLOGY.md rules.
+ * Returns an error string if the path is malformed, null if it looks correct.
+ * Does NOT check existence in _Media_Index.md — that is a separate cross-reference pass.
+ */
+function checkMediaRefFormat(ref: string, context: string): string | null {
+  const parts = ref.split('/');
+
+  if (parts.length === 1) {
+    // Bare filename — no subfolder at all
+    const typePrefix = ref.split('_')[0].toUpperCase();
+    const expectedFolder = MEDIA_TYPE_TO_SUBFOLDER[typePrefix];
+    const hint = expectedFolder
+      ? ` Correct path: "${expectedFolder}/${ref}"`
+      : ` Expected format: "gravestones/CEM_...", "portraits/POR_...", "newspapers/NEWS_...", etc.`;
+    return `${context}: media ref "${ref}" is a bare filename with no subfolder.${hint}`;
+  }
+
+  if (parts.length > 2) {
+    // e.g. "media/portraits/POR_..." or "Coenen_Genealogy/media/..."
+    const stripped = ref.startsWith('media/') ? ref.slice(6) : parts.slice(-2).join('/');
+    return `${context}: media ref "${ref}" has too many path segments — must be "subfolder/filename.ext". Did you mean "${stripped}"?`;
+  }
+
+  // Exactly subfolder/filename — check subfolder is valid
+  const [subfolder, filename] = parts;
+  if (!VALID_MEDIA_SUBFOLDERS.has(subfolder)) {
+    const typePrefix = filename.split('_')[0].toUpperCase();
+    const expectedFolder = MEDIA_TYPE_TO_SUBFOLDER[typePrefix];
+    const hint = expectedFolder
+      ? ` "${typePrefix}_" files belong in "${expectedFolder}/".`
+      : ` Valid subfolders: ${[...VALID_MEDIA_SUBFOLDERS].join(', ')}.`;
+    return `${context}: media ref "${ref}" uses unknown subfolder "${subfolder}".${hint}`;
+  }
+
+  // Check that the subfolder matches the filename TYPE prefix
+  const typePrefix = filename.split('_')[0].toUpperCase();
+  const expectedFolder = MEDIA_TYPE_TO_SUBFOLDER[typePrefix];
+  if (expectedFolder && expectedFolder !== subfolder) {
+    return `${context}: media ref "${ref}" — "${typePrefix}_" files belong in "${expectedFolder}/", not "${subfolder}/".`;
+  }
+
+  return null; // format is correct
+}
+
 const ROOT = process.env.VAULT_ROOT
   ? resolve(process.cwd(), process.env.VAULT_ROOT)
   : resolve(import.meta.dirname, '..', '..');
@@ -36,12 +98,14 @@ function validateSourceFiles(sourceFiles: string[]): {
   sourceIdSet: Set<string>;
   claimedMedia: Set<string>;
   sourcePersons: Map<string, string[]>;
+  sourceMediaRefs: Map<string, string[]>;
 } {
   const result: ValidationResult = { errors: [], warnings: [] };
   const sourceIds = new Map<string, string>(); // source_id -> file
   const sourceIdSet = new Set<string>();
   const claimedMedia = new Set<string>();
   const sourcePersons = new Map<string, string[]>(); // "sources/file" -> persons array
+  const sourceMediaRefs = new Map<string, string[]>(); // file -> valid-format media paths
   let checked = 0;
 
   const REQUIRED_SOURCE_FIELDS = [
@@ -68,11 +132,20 @@ function validateSourceFiles(sourceFiles: string[]): {
     const raw = readFileSync(fullPath, 'utf-8');
     const { data: fm, content } = matter(raw);
 
-    // Collect media paths declared by this source file
+    // Collect and validate media paths declared by this source file
     if (Array.isArray(fm.media)) {
+      const fileRefs: string[] = [];
       for (const p of fm.media) {
-        if (typeof p === 'string') claimedMedia.add(p);
+        if (typeof p !== 'string') continue;
+        claimedMedia.add(p);
+        const formatError = checkMediaRefFormat(p, `sources/${file}`);
+        if (formatError) {
+          result.errors.push(formatError);
+        } else {
+          fileRefs.push(p);
+        }
       }
+      if (fileRefs.length > 0) sourceMediaRefs.set(file, fileRefs);
     }
 
     // Check type: source
@@ -205,7 +278,7 @@ function validateSourceFiles(sourceFiles: string[]): {
     }
   }
 
-  return { result, checked, sourceIds, sourceIdSet, claimedMedia, sourcePersons };
+  return { result, checked, sourceIds, sourceIdSet, claimedMedia, sourcePersons, sourceMediaRefs };
 }
 
 // parseVitalTable is imported as parseVitalTableTuples from validate-helpers
@@ -218,12 +291,14 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
   gedcomIds: Map<string, string>;
   relationships: PersonRelationships[];
   personNames: Set<string>;
+  personMediaRefs: Map<string, string[]>;
 } {
   const result: ValidationResult = { errors: [], warnings: [] };
   const personSourceRefs = new Set<string>();
   const gedcomIds = new Map<string, string>(); // gedcom_id -> file
   const relationships: PersonRelationships[] = [];
   const personNames = new Set<string>(); // normalized names for persons array resolution
+  const personMediaRefs = new Map<string, string[]>(); // file -> media ref paths
   let checked = 0;
 
   const REQUIRED_PERSON_FIELDS = [
@@ -335,6 +410,22 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
           );
         }
       }
+    }
+
+    // Validate media refs per METHODOLOGY.md — format must be "subfolder/filename.ext"
+    // and every ref must exist in _Media_Index.md (checked in cross-reference pass below).
+    if (Array.isArray(fm.media)) {
+      const fileRefs: string[] = [];
+      for (const ref of fm.media) {
+        if (typeof ref !== 'string') continue;
+        const formatError = checkMediaRefFormat(ref, `people/${file}`);
+        if (formatError) {
+          result.errors.push(formatError);
+        } else {
+          fileRefs.push(ref); // only track correctly-formatted refs for existence check
+        }
+      }
+      if (fileRefs.length > 0) personMediaRefs.set(file, fileRefs);
     }
 
     // Check Vital Information field names match recognized patterns
@@ -450,7 +541,7 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
     });
   }
 
-  return { result, checked, personSourceRefs, gedcomIds, relationships, personNames };
+  return { result, checked, personSourceRefs, gedcomIds, relationships, personNames, personMediaRefs };
 }
 
 interface MediaEntryInfo {
@@ -460,13 +551,14 @@ interface MediaEntryInfo {
   line: number;
 }
 
-function validateMediaIndex(): { result: ValidationResult; entryCount: number; newsAndDocEntries: MediaEntryInfo[] } {
+function validateMediaIndex(): { result: ValidationResult; entryCount: number; newsAndDocEntries: MediaEntryInfo[]; indexPaths: Set<string> } {
   const result: ValidationResult = { errors: [], warnings: [] };
   const newsAndDocEntries: MediaEntryInfo[] = [];
+  const indexPaths = new Set<string>();
 
   if (!existsSync(MEDIA_INDEX)) {
     result.warnings.push('_Media_Index.md does not exist — skipping media validation');
-    return { result, entryCount: 0, newsAndDocEntries };
+    return { result, entryCount: 0, newsAndDocEntries, indexPaths };
   }
 
   const content = readFileSync(MEDIA_INDEX, 'utf-8');
@@ -536,6 +628,7 @@ function validateMediaIndex(): { result: ValidationResult; entryCount: number; n
       result.errors.push(`_Media_Index.md: duplicate local path "${localPath}"`);
     } else {
       localPaths.add(localPath);
+      indexPaths.add(localPath);
     }
 
     // Track NEWS and DOC entries for processing check
@@ -546,7 +639,7 @@ function validateMediaIndex(): { result: ValidationResult; entryCount: number; n
     }
   }
 
-  return { result, entryCount, newsAndDocEntries };
+  return { result, entryCount, newsAndDocEntries, indexPaths };
 }
 
 
@@ -563,6 +656,7 @@ async function main() {
   let sourceIdSet = new Set<string>();
   let claimedMedia = new Set<string>();
   let sourcePersons = new Map<string, string[]>();
+  let sourceMediaRefs = new Map<string, string[]>();
 
   if (existsSync(SOURCES_DIR)) {
     const sourceFiles = await glob('**/*.md', { cwd: SOURCES_DIR });
@@ -572,6 +666,7 @@ async function main() {
     sourceIdSet = srcValidation.sourceIdSet;
     claimedMedia = srcValidation.claimedMedia;
     sourcePersons = srcValidation.sourcePersons;
+    sourceMediaRefs = srcValidation.sourceMediaRefs;
 
     const srcErrors = srcValidation.result.errors.length;
     const srcWarnings = srcValidation.result.warnings.length;
@@ -606,6 +701,7 @@ async function main() {
   let relationships: PersonRelationships[] = [];
   let personSourceRefs = new Set<string>();
   let personNames = new Set<string>();
+  let personMediaRefs = new Map<string, string[]>();
 
   if (existsSync(PEOPLE_DIR)) {
     const personFiles = await glob('**/*.md', { cwd: PEOPLE_DIR });
@@ -621,6 +717,7 @@ async function main() {
     relationships = pplValidation.relationships;
     personSourceRefs = pplValidation.personSourceRefs;
     personNames = pplValidation.personNames;
+    personMediaRefs = pplValidation.personMediaRefs;
 
     const pplErrors = pplValidation.result.errors.length;
     const pplWarnings = pplValidation.result.warnings.length;
@@ -652,7 +749,7 @@ async function main() {
   }
 
   // ── Media Index ──
-  const { result: mediaResult, entryCount: mediaEntries, newsAndDocEntries } = validateMediaIndex();
+  const { result: mediaResult, entryCount: mediaEntries, newsAndDocEntries, indexPaths } = validateMediaIndex();
   const mediaErrors = mediaResult.errors.length;
   const mediaWarnings = mediaResult.warnings.length;
   totalErrors += mediaErrors;
@@ -691,6 +788,83 @@ async function main() {
     console.log(`  \u2717 ${unprocessedErrors} unprocessed:`);
     for (const e of unprocessedResult.errors) {
       console.log(`    ${e}`);
+    }
+  }
+
+  // ── Media Linkage Check ──
+  // Per METHODOLOGY.md, an image appears on the site only if it has THREE entries:
+  //   1. source file media: array
+  //   2. person file media: array
+  //   3. _Media_Index.md
+  // Check all three directions: refs in person/source files must be in the index,
+  // and every index entry must be claimed by at least one source file and one person file.
+  {
+    // Build reverse maps: index path → which source/person files claim it
+    const indexClaimedBySources = new Map<string, string[]>();
+    const indexClaimedByPeople = new Map<string, string[]>();
+
+    for (const [file, refs] of sourceMediaRefs) {
+      for (const ref of refs) indexClaimedBySources.set(ref, [...(indexClaimedBySources.get(ref) ?? []), `sources/${file}`]);
+    }
+    for (const [file, refs] of personMediaRefs) {
+      for (const ref of refs) indexClaimedByPeople.set(ref, [...(indexClaimedByPeople.get(ref) ?? []), `people/${file}`]);
+    }
+
+    const mediaLinkErrors: string[] = [];
+    const mediaLinkWarnings: string[] = [];
+
+    // 1. Every correctly-formatted source media ref must exist in _Media_Index.md
+    for (const [file, refs] of sourceMediaRefs) {
+      for (const ref of refs) {
+        if (!indexPaths.has(ref)) {
+          mediaLinkErrors.push(`sources/${file}: media ref "${ref}" not found in _Media_Index.md — image will not appear on site`);
+        }
+      }
+    }
+
+    // 2. Every correctly-formatted person media ref must exist in _Media_Index.md
+    for (const [file, refs] of personMediaRefs) {
+      for (const ref of refs) {
+        if (!indexPaths.has(ref)) {
+          mediaLinkErrors.push(`people/${file}: media ref "${ref}" not found in _Media_Index.md — image will not appear on site`);
+        }
+      }
+    }
+
+    // 3. Every _Media_Index.md entry must be claimed by at least one source file
+    //    (per Source Acquisition Protocol: every downloaded image must have a source file)
+    for (const indexPath of indexPaths) {
+      if (!indexClaimedBySources.has(indexPath)) {
+        mediaLinkErrors.push(`_Media_Index.md: "${indexPath}" is not referenced in any source file media: array — add it to the source it came from`);
+      }
+    }
+
+    // 4. Every _Media_Index.md entry must be claimed by at least one person file
+    //    (per Linking rules: image needs person file ref to render on the person's page)
+    for (const indexPath of indexPaths) {
+      if (!indexClaimedByPeople.has(indexPath)) {
+        mediaLinkWarnings.push(`_Media_Index.md: "${indexPath}" is not referenced in any person file media: array — image is registered but will not appear on any person's page`);
+      }
+    }
+
+    totalErrors += mediaLinkErrors.length;
+    totalWarnings += mediaLinkWarnings.length;
+
+    console.log(`\nMedia Linkage: ${indexPaths.size} index entries, ${[...sourceMediaRefs.values()].flat().length} source refs, ${[...personMediaRefs.values()].flat().length} person refs`);
+    if (mediaLinkErrors.length === 0 && mediaLinkWarnings.length === 0) {
+      console.log(`  \u2713 All media refs resolve and every index entry is fully linked (source + person + index)`);
+    }
+    if (mediaLinkErrors.length > 0) {
+      console.log(`  \u2717 ${mediaLinkErrors.length} broken links:`);
+      for (const e of mediaLinkErrors) console.log(`    ${e}`);
+    }
+    if (mediaLinkWarnings.length > 0) {
+      if (verbose) {
+        console.log(`  ! ${mediaLinkWarnings.length} warnings:`);
+        for (const w of mediaLinkWarnings) console.log(`    ${w}`);
+      } else {
+        console.log(`  ! ${mediaLinkWarnings.length} warnings (run with --verbose to see)`);
+      }
     }
   }
 
