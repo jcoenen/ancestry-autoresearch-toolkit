@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { usePersonBySlug, usePersonById, useData, usePeople, formatYear, confidenceColor, getSourceSlugById, MEDIA_BASE, extractYear } from '../useData'
-import type { Person, ChildRef, SpouseRef } from '../types'
+import type { Person } from '../types'
 import { useLightbox } from '../hooks/useLightbox'
 import Lightbox from '../components/Lightbox'
 import { buildGenderMap } from './VerticalTreePrototypes'
@@ -62,159 +62,7 @@ function PersonLink({ id, name }: { id: string; name: string }) {
   return <span className="text-stone-600">{name || id || 'Unknown'}</span>
 }
 
-function ChildCard({ child }: { child: ChildRef }) {
-  const person = usePersonById(child.id)
-  const born = person ? formatYear(person.born) : ''
-  const died = person ? formatYear(person.died) : ''
-  const years = born ? (died && died !== '?' ? `${born}\u2013${died}` : `b. ${born}`) : ''
 
-  if (person) {
-    return (
-      <Link to={`/people/${person.slug}`} className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-stone-50 transition-colors group">
-        <span className="w-6 h-6 rounded-full bg-stone-200 group-hover:bg-amber-200 flex items-center justify-center text-xs text-stone-500 transition-colors">
-          {person.name.charAt(0)}
-        </span>
-        <div className="min-w-0">
-          <div className="text-sm font-medium text-stone-800 truncate">{person.name}</div>
-          {years && <div className="text-xs text-stone-400">{years}</div>}
-        </div>
-      </Link>
-    )
-  }
-  return (
-    <div className="flex items-center gap-2 px-3 py-2">
-      <span className="w-6 h-6 rounded-full bg-stone-100 flex items-center justify-center text-xs text-stone-400">?</span>
-      <span className="text-sm text-stone-500">{child.name || child.id}</span>
-    </div>
-  )
-}
-
-function CollapsibleChildren({ children, defaultOpen = false }: { children: ChildRef[]; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(defaultOpen)
-
-  if (children.length === 0) return null
-
-  return (
-    <div className="mt-2">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 w-full text-left px-1 py-1 rounded hover:bg-stone-50 transition-colors"
-      >
-        <svg
-          className={`w-4 h-4 text-stone-400 transition-transform ${open ? 'rotate-90' : ''}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
-        <span className="text-xs font-medium text-stone-500 uppercase tracking-wide">
-          Children ({children.length})
-        </span>
-      </button>
-      {open && (
-        <div className="ml-1 mt-1 border-l-2 border-stone-200 pl-2">
-          {children.map((ch, i) => (
-            <ChildCard key={i} child={ch} />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function FamilyUnit({ person, spouse, children }: { person: Person; spouse?: SpouseRef; children: ChildRef[] }) {
-  return (
-    <div className="rounded-lg border border-stone-200 bg-white p-4">
-      <div className="flex items-center gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="text-xs font-medium text-stone-400 uppercase tracking-wide mb-0.5">
-            {spouse ? 'Spouse' : 'Unknown Partner'}
-          </div>
-          {spouse ? (
-            <div className="flex items-baseline gap-2">
-              <PersonLink id={spouse.id} name={spouse.name} />
-              {spouse.marriageDate && (
-                <span className="text-xs text-stone-400">m. {spouse.marriageDate}</span>
-              )}
-            </div>
-          ) : (
-            <span className="text-sm text-stone-400 italic">Unknown</span>
-          )}
-        </div>
-      </div>
-      <CollapsibleChildren children={children} defaultOpen={children.length <= 5} />
-    </div>
-  )
-}
-
-function FamilyUnits({ person }: { person: Person }) {
-  const allPeople = usePeople()
-
-  if (person.spouses.length === 0 && person.children.length === 0) return null
-
-  // Group children by which spouse they belong to
-  const spouseChildMap = new Map<string, ChildRef[]>()
-  const unmatched: ChildRef[] = []
-
-  // Initialize a bucket for each spouse
-  for (const sp of person.spouses) {
-    spouseChildMap.set(sp.id || sp.name, [])
-  }
-
-  for (const ch of person.children) {
-    // 1. Use explicit spouseIndex from build data (set when Children (Nth marriage) was used)
-    if (ch.spouseIndex !== undefined && ch.spouseIndex < person.spouses.length) {
-      const sp = person.spouses[ch.spouseIndex]
-      const key = sp.id || sp.name
-      spouseChildMap.get(key)?.push(ch)
-      continue
-    }
-
-    // 2. Cross-reference: look up child in allPeople and match parent to a spouse
-    const childPerson = ch.id ? allPeople.find(p => p.id === ch.id) : undefined
-    if (childPerson) {
-      let matched = false
-      for (const sp of person.spouses) {
-        const spouseId = sp.id
-        if (
-          childPerson.father === spouseId || childPerson.mother === spouseId ||
-          childPerson.fatherName === sp.name || childPerson.motherName === sp.name
-        ) {
-          const key = sp.id || sp.name
-          spouseChildMap.get(key)?.push(ch)
-          matched = true
-          break
-        }
-      }
-      if (matched) continue
-    }
-
-    // 3. Fallback: if only one spouse, assign to them
-    if (person.spouses.length === 1) {
-      const key = person.spouses[0].id || person.spouses[0].name
-      spouseChildMap.get(key)?.push(ch)
-    } else {
-      unmatched.push(ch)
-    }
-  }
-
-  return (
-    <>
-      {person.spouses.map((sp, i) => {
-        const key = sp.id || sp.name
-        const children = spouseChildMap.get(key) || []
-        return <FamilyUnit key={i} person={person} spouse={sp} children={children} />
-      })}
-      {unmatched.length > 0 && person.spouses.length !== 1 && (
-        <FamilyUnit person={person} children={unmatched} />
-      )}
-      {person.spouses.length === 0 && person.children.length > 0 && (
-        <div className="rounded-lg border border-stone-200 bg-white p-4">
-          <CollapsibleChildren children={person.children} defaultOpen={person.children.length <= 5} />
-        </div>
-      )}
-    </>
-  )
-}
 
 function MarkdownSection({ content }: { content: string }) {
   const lines = content.split('\n')
@@ -363,19 +211,18 @@ function MiniTree({ person }: { person: Person }) {
   const children = person.children
     .map(c => c.id ? allPeople.find(p => p.id === c.id) ?? null : null)
     .filter((p): p is Person => p !== null)
+  const spouses = person.spouses ?? []
 
   const hasParents = !!(father || person.fatherName || mother || person.motherName)
-  const MAX_SHOWN = 5
-  const shownChildren = children.slice(0, MAX_SHOWN)
-  const extraChildren = children.length - MAX_SHOWN
+  const hasBelow = spouses.length > 0 || children.length > 0
 
-  if (!hasParents && children.length === 0) return null
+  if (!hasParents && !hasBelow) return null
 
   return (
-    <section className="mb-6 print-hide">
+    <section className="mb-8">
+      <h2 className="text-xl font-semibold text-stone-800 mb-3">Family</h2>
       <div className="rounded-lg border border-stone-200 bg-white p-4">
-        <span className="text-xs font-semibold text-stone-400 uppercase tracking-wide">Family at a Glance</span>
-        <div className="mt-3 flex flex-col items-center gap-0">
+        <div className="flex flex-col items-center gap-0">
           {/* Parents row */}
           {hasParents && (
             <div className="flex flex-wrap gap-2 justify-center">
@@ -393,19 +240,27 @@ function MiniTree({ person }: { person: Person }) {
           <div className="px-4 py-2 rounded-lg bg-amber-50 border-2 border-amber-300 text-sm font-semibold text-amber-800">
             {person.name}
           </div>
-          {/* Connector */}
+          {/* Spouses row */}
+          {spouses.length > 0 && (
+            <>
+              <div className="w-px h-4 bg-stone-300 my-0.5" />
+              <div className="flex flex-wrap gap-2 justify-center">
+                {spouses.map((sp, i) => {
+                  const spPerson = sp.id ? allPeople.find(p => p.id === sp.id) ?? null : null
+                  const label = sp.marriageDate ? `Spouse (m. ${sp.marriageDate})` : 'Spouse'
+                  return <MiniPersonChip key={i} person={spPerson} name={sp.name} role={label} color="pink" />
+                })}
+              </div>
+            </>
+          )}
+          {/* Connector to children */}
           {children.length > 0 && <div className="w-px h-4 bg-stone-300 my-0.5" />}
           {/* Children row */}
           {children.length > 0 && (
             <div className="flex flex-wrap gap-2 justify-center">
-              {shownChildren.map(child => (
+              {children.map(child => (
                 <MiniPersonChip key={child.id} person={child} name={child.name} role="Child" />
               ))}
-              {extraChildren > 0 && (
-                <div className="px-2.5 py-1.5 rounded-md border border-stone-200 bg-stone-50 text-xs text-stone-500 self-end">
-                  +{extraChildren} more
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -627,9 +482,8 @@ export default function PersonPage() {
         </div>
       )}
 
-      {/* Completeness + Mini Tree — only for non-private people */}
+      {/* Completeness — only for non-private people */}
       {!person.privacy && <CompletenessCard person={person} sourceCount={personSources.length} />}
-      {!person.privacy && <MiniTree person={person} />}
 
       {/* Vital Information */}
       {!person.privacy && (
@@ -684,33 +538,7 @@ export default function PersonPage() {
       )}
 
       {/* Family */}
-      <section className="mb-8">
-        <h2 className="text-xl font-semibold text-stone-800 mb-3">Family</h2>
-        <div className="space-y-4">
-          {/* Parents */}
-          {(person.father || person.fatherName || person.mother || person.motherName) && (
-            <div className="rounded-lg border border-stone-200 bg-white p-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {(person.father || person.fatherName) && (
-                  <div>
-                    <div className="text-xs font-medium text-stone-400 uppercase tracking-wide mb-0.5">Father</div>
-                    <PersonLink id={person.father} name={person.fatherName} />
-                  </div>
-                )}
-                {(person.mother || person.motherName) && (
-                  <div>
-                    <div className="text-xs font-medium text-stone-400 uppercase tracking-wide mb-0.5">Mother</div>
-                    <PersonLink id={person.mother} name={person.motherName} />
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Spouse/Children Family Units */}
-          <FamilyUnits person={person} />
-        </div>
-      </section>
+      <MiniTree person={person} />
 
       {/* Biography */}
       {!person.privacy && person.biography && (
