@@ -2,6 +2,19 @@
 
 ## What Was Done
 
+### Session 22: Family mini-tree spouse layout upgrade
+
+**Spouse(s) shown side-by-side with person in mini family tree (`PersonPage.tsx`):**
+- Single spouse: person and spouse rendered on the same horizontal row, connected by a double-line (═) marriage connector. Children appear below the couple.
+- Multiple spouses: person centered at top with a branching tree connector down to each spouse group. Each branch shows the spouse chip (with marriage date) and that union's children directly beneath — children are grouped under the correct parent via `spouseIndex`.
+- No spouse: person centered with children below (unchanged behavior).
+- Spouse chip colors are now gender-aware (blue for male, pink for female) instead of always pink.
+- Unattributed children (no `spouseIndex`) fold into a single-spouse group, or appear separately at the bottom for multi-spouse people.
+- Container has `overflow-x-auto` for wide multi-spouse layouts.
+- **State:** 194 tests passing, TypeScript clean, pushed as `90dc852`
+
+---
+
 ### Session 21: Person page Family section consolidation + completeness card fix
 
 **Family section replaced by unified visual tree (`PersonPage.tsx`):**
