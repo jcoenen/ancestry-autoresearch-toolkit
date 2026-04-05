@@ -1,6 +1,14 @@
-# Handover — 2026-04-04
+# Handover — 2026-04-05
 
 ## What Was Done
+
+### Session 21: Always-visible Data Completeness Card
+
+- Removed the early-return guard in `CompletenessCard` (`PersonPage.tsx`) that hid the card when all 7 fields were filled
+- The card now renders for every non-private person, including those at 100% — previously they saw nothing
+- 1-line change, 194 tests passing, pushed as `6075aec`
+
+---
 
 ### Session 20: Cemetery Browser + FamilyDirectory Advanced Filters
 
