@@ -2,6 +2,24 @@
 
 ## What Was Done
 
+### Session 20: Cemetery Browser + FamilyDirectory Advanced Filters
+
+**Cemetery Browser (`site/src/pages/CemeteryBrowserPage.tsx`) — new page at `/cemeteries`:**
+- Left panel: all unique burial places from person data, sorted by person count, with count badge. "📍 geocoded" label when coordinates exist in the geocode cache.
+- Right panel: all people buried at the selected cemetery, sorted by birth year. Each card shows photo thumbnail (or ✝ cross placeholder if no media), name, birth–death years, family line, and links to profile page.
+- "View on map" button links to OpenStreetMap at the geocoded coordinates when available.
+- Family filter (`FamilyFilterDropdown`) + cemetery name search input at top.
+- Data is aggregated client-side from `site-data.json` — no build changes needed.
+- Added to Research nav dropdown (after Immigration Stories).
+
+**FamilyDirectory advanced filters (`site/src/pages/FamilyDirectory.tsx`):**
+- Confidence toggle pills: color-coded (emerald = high, amber = moderate/medium, red = low, stone = stub/speculative), dynamically derived from the actual data. Empty selection = show all; selecting pills filters to only those levels. "clear" link resets.
+- Birth year range: "Born: [from] – [to]" number inputs. People with unknown birth years always pass the filter regardless of range.
+- "X of N shown" count appears in the filter row when any advanced filter is active.
+- Existing name+birthplace+family text search and family dropdown unchanged.
+
+**State:** 194 tests passing, TypeScript clean, pushed to `master` as `1676994`
+
 ### Session 19: Nav Reorganization + 6 UX Improvements
 
 **Nav restructure (`Nav.tsx`):**
