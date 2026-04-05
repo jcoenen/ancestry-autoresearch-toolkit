@@ -1,7 +1,20 @@
 import { useState, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { usePeople, formatYear, confidenceColor } from '../useData'
+import { usePeople, formatYear, confidenceColor, extractYear } from '../useData'
 import FamilyFilterDropdown from '../components/FamilyFilterDropdown'
+
+const CONFIDENCE_ORDER = ['high', 'moderate', 'medium', 'low', 'stub', 'speculative']
+
+function confidencePillStyle(confidence: string, active: boolean): string {
+  if (!active) return 'border border-stone-200 text-stone-400 bg-white'
+  switch (confidence) {
+    case 'high': return 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+    case 'moderate':
+    case 'medium': return 'bg-amber-100 text-amber-700 border border-amber-200'
+    case 'low': return 'bg-red-100 text-red-700 border border-red-200'
+    default: return 'bg-stone-100 text-stone-500 border border-stone-200'
+  }
+}
 
 export default function FamilyDirectory() {
   const people = usePeople()
@@ -12,10 +25,18 @@ export default function FamilyDirectory() {
   const [familyFilter, setFamilyFilter] = useState<Set<string>>(
     initialFamily ? new Set([initialFamily]) : new Set()
   )
+  const [confidenceFilter, setConfidenceFilter] = useState<Set<string>>(new Set())
+  const [yearFrom, setYearFrom] = useState('')
+  const [yearTo, setYearTo] = useState('')
 
   const families = useMemo(() => {
     const set = new Set(people.map(p => p.family).filter(Boolean))
     return Array.from(set).sort()
+  }, [people])
+
+  const confidenceValues = useMemo(() => {
+    const set = new Set(people.map(p => p.confidence).filter(Boolean))
+    return CONFIDENCE_ORDER.filter(c => set.has(c))
   }, [people])
 
   const filtered = useMemo(() => {
@@ -23,6 +44,22 @@ export default function FamilyDirectory() {
 
     if (familyFilter.size > 0) {
       result = result.filter(p => familyFilter.has(p.family))
+    }
+
+    if (confidenceFilter.size > 0) {
+      result = result.filter(p => confidenceFilter.has(p.confidence))
+    }
+
+    const from = yearFrom ? parseInt(yearFrom, 10) : null
+    const to = yearTo ? parseInt(yearTo, 10) : null
+    if (from !== null || to !== null) {
+      result = result.filter(p => {
+        const year = extractYear(p.born)
+        if (year === null) return true // unknown birth year always passes
+        if (from !== null && year < from) return false
+        if (to !== null && year > to) return false
+        return true
+      })
     }
 
     if (search) {
@@ -35,7 +72,7 @@ export default function FamilyDirectory() {
     }
 
     return result
-  }, [people, search, familyFilter])
+  }, [people, search, familyFilter, confidenceFilter, yearFrom, yearTo])
 
   const grouped = useMemo(() => {
     const groups: Record<string, typeof filtered> = {}
@@ -44,7 +81,6 @@ export default function FamilyDirectory() {
       if (!groups[fam]) groups[fam] = []
       groups[fam].push(p)
     }
-    // Sort each group by birth year
     for (const fam of Object.keys(groups)) {
       groups[fam].sort((a, b) => {
         const aYear = String(a.born).replace(/[^0-9]/g, '').slice(0, 4)
@@ -57,6 +93,17 @@ export default function FamilyDirectory() {
 
   const sortedFamilies = Object.keys(grouped).sort()
 
+  function toggleConfidence(value: string) {
+    setConfidenceFilter(prev => {
+      const next = new Set(prev)
+      if (next.has(value)) next.delete(value)
+      else next.add(value)
+      return next
+    })
+  }
+
+  const hasAdvancedFilters = confidenceFilter.size > 0 || yearFrom || yearTo
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <h1 className="text-3xl font-bold text-stone-800">Family Directory</h1>
@@ -64,8 +111,8 @@ export default function FamilyDirectory() {
         {people.length} people across {families.length} family lines
       </p>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-8">
+      {/* Filters row 1 */}
+      <div className="flex flex-wrap items-center gap-3 mb-3">
         <input
           type="text"
           placeholder="Search by name or place..."
@@ -79,6 +126,65 @@ export default function FamilyDirectory() {
           onChange={setFamilyFilter}
           single
         />
+      </div>
+
+      {/* Filters row 2: confidence + year range */}
+      <div className="flex flex-wrap items-center gap-4 mb-8">
+        {/* Confidence toggles */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs text-stone-400 font-medium mr-0.5">Confidence:</span>
+          {confidenceValues.map(c => (
+            <button
+              key={c}
+              onClick={() => toggleConfidence(c)}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all ${confidencePillStyle(c, confidenceFilter.has(c))}`}
+            >
+              {c}
+            </button>
+          ))}
+          {confidenceFilter.size > 0 && (
+            <button
+              onClick={() => setConfidenceFilter(new Set())}
+              className="text-[11px] text-stone-400 hover:text-stone-600 ml-1 underline"
+            >
+              clear
+            </button>
+          )}
+        </div>
+
+        {/* Birth year range */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-stone-400 font-medium">Born:</span>
+          <input
+            type="number"
+            placeholder="from"
+            value={yearFrom}
+            onChange={e => setYearFrom(e.target.value)}
+            className="w-20 px-2 py-1 rounded-lg border border-stone-200 bg-white text-sm text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-400"
+          />
+          <span className="text-xs text-stone-400">–</span>
+          <input
+            type="number"
+            placeholder="to"
+            value={yearTo}
+            onChange={e => setYearTo(e.target.value)}
+            className="w-20 px-2 py-1 rounded-lg border border-stone-200 bg-white text-sm text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-400"
+          />
+          {(yearFrom || yearTo) && (
+            <button
+              onClick={() => { setYearFrom(''); setYearTo('') }}
+              className="text-[11px] text-stone-400 hover:text-stone-600 underline"
+            >
+              clear
+            </button>
+          )}
+        </div>
+
+        {hasAdvancedFilters && (
+          <span className="text-xs text-amber-600 font-medium">
+            {filtered.length} of {people.length} shown
+          </span>
+        )}
       </div>
 
       {/* Results */}

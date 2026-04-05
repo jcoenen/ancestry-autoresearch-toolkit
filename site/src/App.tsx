@@ -21,6 +21,7 @@ import UpdatesPage from './pages/UpdatesPage'
 import VerticalTreePrototypes from './pages/VerticalTreePrototypes'
 import FamilyMapPage from './pages/FamilyMapPage'
 import FeaturesPage from './pages/FeaturesPage'
+import CemeteryBrowserPage from './pages/CemeteryBrowserPage'
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -52,6 +53,7 @@ function App() {
           <Route path="/map" element={<FamilyMapPage />} />
           <Route path="/updates" element={<UpdatesPage />} />
           <Route path="/features" element={<FeaturesPage />} />
+          <Route path="/cemeteries" element={<CemeteryBrowserPage />} />
           <Route path="/theme-mockups" element={<ThemeMockups />} />
         </Routes>
       </ErrorBoundary>
