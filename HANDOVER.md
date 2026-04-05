@@ -2,6 +2,30 @@
 
 ## What Was Done
 
+### Session 23: Document completeness tracking
+
+**7 key document types added to completeness tracking:**
+- Obituary, Gravestone, Death Certificate, Birth Certificate, Baptism/Church Record, Marriage Certificate, Personal Photo
+
+**`PersonPage.tsx` — CompletenessCard redesign:**
+- Accepts full `personSources: SourceEntry[]` instead of just count
+- Split into two labeled chip groups: **Biography** (7 fields, unchanged) and **Key Documents** (7 doc types)
+- Overall % now covers all 14 fields combined
+- Detection: obituary/death cert/birth cert/marriage cert from source type; gravestone from cemetery source or gravestone media; baptism from church or baptism source; photo from photo/portrait media
+
+**`ResearchGapsPage.tsx` — Document Coverage section:**
+- New **Document Coverage** progress bar panel (parallel to Field Coverage)
+- 7 new collapsible sections, each with "Where to look" suggestions pointing to the right archives (Newspapers.com, FindAGrave, state vital records, FamilySearch, parish archives, etc.)
+
+**`SourcesPage.tsx`** — New source types added to taxonomy:
+- `death_certificate`, `birth_certificate`, `marriage_certificate`, `baptism`
+
+**`research-plan.ts`** — GapData interface extended with 7 optional document gap arrays; generateResearchPlan includes them in per-person gap lists; SUGGESTIONS expanded with per-type research guidance
+
+- **State:** 194 tests passing, TypeScript clean, pushed as `da4df47`
+
+---
+
 ### Session 22: Family mini-tree spouse layout + fixture data fix
 
 **Family mini-tree v1 (`90dc852`):**
