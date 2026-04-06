@@ -8,6 +8,7 @@ const links = [
   { to: '/tree', label: 'Family Tree' },
   { to: '/people', label: 'People' },
   { to: '/gallery', label: 'Gallery' },
+  { to: '/recent', label: 'Recent' },
 ]
 
 const visualizeLinks = [
@@ -23,7 +24,9 @@ const researchLinks = [
   { to: '/immigration', label: 'Immigration Stories' },
   { to: '/cemeteries', label: 'Cemetery Browser' },
   { to: '/research-gaps', label: 'Research Gaps' },
-  { to: '/recent', label: 'Recent Additions' },
+]
+
+const aboutLinks = [
   { to: '/updates', label: "What's New" },
   { to: '/features', label: 'Features Guide' },
 ]
@@ -41,9 +44,11 @@ export default function Nav() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [visualizeOpen, setVisualizeOpen] = useState(false)
   const [researchOpen, setResearchOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const visualizeRef = useRef<HTMLDivElement>(null)
   const researchRef = useRef<HTMLDivElement>(null)
+  const aboutRef = useRef<HTMLDivElement>(null)
   const config = useSiteConfig()
 
   // Close menus on route change
@@ -51,11 +56,12 @@ export default function Nav() {
     setMenuOpen(false)
     setVisualizeOpen(false)
     setResearchOpen(false)
+    setAboutOpen(false)
   }, [location.pathname])
 
   // Close menus on click outside
   useEffect(() => {
-    if (!menuOpen && !visualizeOpen && !researchOpen) return
+    if (!menuOpen && !visualizeOpen && !researchOpen && !aboutOpen) return
     function handleClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false)
@@ -66,13 +72,17 @@ export default function Nav() {
       if (researchRef.current && !researchRef.current.contains(e.target as Node)) {
         setResearchOpen(false)
       }
+      if (aboutRef.current && !aboutRef.current.contains(e.target as Node)) {
+        setAboutOpen(false)
+      }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [menuOpen, visualizeOpen, researchOpen])
+  }, [menuOpen, visualizeOpen, researchOpen, aboutOpen])
 
   const isVisualizeActive = visualizeLinks.some(l => location.pathname.startsWith(l.to))
   const isResearchActive = researchLinks.some(l => location.pathname.startsWith(l.to))
+  const isAboutActive = aboutLinks.some(l => location.pathname.startsWith(l.to))
 
   return (
     <nav ref={menuRef} className="border-b border-stone-200 bg-white/80 backdrop-blur-sm sticky top-0 z-50">
@@ -108,7 +118,7 @@ export default function Nav() {
             {/* Visualize dropdown */}
             <div ref={visualizeRef} className="relative">
               <button
-                onClick={() => { setVisualizeOpen(!visualizeOpen); setResearchOpen(false) }}
+                onClick={() => { setVisualizeOpen(!visualizeOpen); setResearchOpen(false); setAboutOpen(false) }}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   isVisualizeActive
                     ? 'bg-stone-100 text-stone-900'
@@ -143,7 +153,7 @@ export default function Nav() {
             {/* Research dropdown */}
             <div ref={researchRef} className="relative">
               <button
-                onClick={() => { setResearchOpen(!researchOpen); setVisualizeOpen(false) }}
+                onClick={() => { setResearchOpen(!researchOpen); setVisualizeOpen(false); setAboutOpen(false) }}
                 className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   isResearchActive
                     ? 'bg-stone-100 text-stone-900'
@@ -156,6 +166,41 @@ export default function Nav() {
               {researchOpen && (
                 <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-50">
                   {researchLinks.map(link => {
+                    const isActive = location.pathname.startsWith(link.to)
+                    return (
+                      <Link
+                        key={link.to}
+                        to={link.to}
+                        className={`block px-4 py-2 text-sm transition-colors hover:no-underline ${
+                          isActive
+                            ? 'bg-stone-50 text-stone-900 font-medium'
+                            : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'
+                        }`}
+                      >
+                        {link.label}
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* About dropdown */}
+            <div ref={aboutRef} className="relative">
+              <button
+                onClick={() => { setAboutOpen(!aboutOpen); setVisualizeOpen(false); setResearchOpen(false) }}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  isAboutActive
+                    ? 'bg-stone-100 text-stone-900'
+                    : 'text-stone-500 hover:text-stone-800 hover:bg-stone-50'
+                }`}
+              >
+                About
+                <ChevronIcon open={aboutOpen} />
+              </button>
+              {aboutOpen && (
+                <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-50">
+                  {aboutLinks.map(link => {
                     const isActive = location.pathname.startsWith(link.to)
                     return (
                       <Link
@@ -242,6 +287,25 @@ export default function Nav() {
             <div className="pt-2 mt-2 border-t border-stone-100">
               <span className="block px-3 py-1 text-xs font-semibold text-stone-400 uppercase tracking-wider">Research</span>
               {researchLinks.map(link => {
+                const isActive = location.pathname.startsWith(link.to)
+                return (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    className={`block px-3 py-2.5 rounded-md text-base font-medium transition-colors hover:no-underline ${
+                      isActive
+                        ? 'bg-stone-100 text-stone-900'
+                        : 'text-stone-600 hover:text-stone-800 hover:bg-stone-50'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                )
+              })}
+            </div>
+            <div className="pt-2 mt-2 border-t border-stone-100">
+              <span className="block px-3 py-1 text-xs font-semibold text-stone-400 uppercase tracking-wider">About</span>
+              {aboutLinks.map(link => {
                 const isActive = location.pathname.startsWith(link.to)
                 return (
                   <Link
