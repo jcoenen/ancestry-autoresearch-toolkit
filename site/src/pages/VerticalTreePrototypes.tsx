@@ -593,7 +593,7 @@ function VerticalDagreTree({ focusId, people, genderMap }: {
   }, [people, focusId])
 
   const { layoutNodes, edges } = useMemo(() => {
-    const tree = buildPedigreeFromRoot(people, focusId, 8)
+    const tree = buildPedigreeFromRoot(people, focusId, 99)
     if (!tree) return { layoutNodes: [], edges: [] }
     const nodes: Node<VNodeData>[] = []
     const edgeList: Edge[] = []
