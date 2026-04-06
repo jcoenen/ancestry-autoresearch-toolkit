@@ -272,16 +272,10 @@ async function main() {
     const biography = extractBiography(content);
     const birthDateAnalysis = extractSection(content, 'Birth Date Analysis');
 
-    // Extract GEDCOM ID from a vital table value like "[[path]] (I123)" or "Name (I123)"
-    function extractGedcomId(val: string): string {
-      const m = val.match(/\(([A-Z]\d+)\)/);
-      return m ? m[1] : '';
-    }
-
-    // Read relationships from YAML frontmatter (structured), falling back to vital table parsing
-    const fatherId = fm.father ? String(fm.father) : extractGedcomId(vitals['Father'] || '');
+    // Read relationships from YAML frontmatter (structured, no parsing)
+    const fatherId = fm.father ? String(fm.father) : '';
     const fatherName = idToName.get(fatherId) || '';
-    const motherId = fm.mother ? String(fm.mother) : extractGedcomId(vitals['Mother'] || '');
+    const motherId = fm.mother ? String(fm.mother) : '';
     const motherName = idToName.get(motherId) || '';
 
     type SpouseFm = { id?: string; married?: string };
