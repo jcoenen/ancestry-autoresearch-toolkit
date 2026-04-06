@@ -78,6 +78,7 @@ interface PersonData {
   familySearchId: string;
   divorce: string;
   cremation: string;
+  created: string;
   _mediaRefs: string[];
 }
 
@@ -112,6 +113,7 @@ interface SourceEntry {
   ocrVerified: boolean | null;
   language: string;
   media: MediaEntry[];
+  created: string;
   _mediaRefs: string[];
 }
 
@@ -234,6 +236,7 @@ async function parseSourceFiles(): Promise<SourceEntry[]> {
       ocrVerified: fm.ocr_verified === true ? true : fm.ocr_verified === false ? false : null,
       language: fm.language || '',
       media: [],
+      created: formatDate(fm.created),
       _mediaRefs: fm.media || [],
     });
   }
@@ -350,6 +353,7 @@ async function main() {
       familySearchId: isPrivate ? '' : (vitals['FamilySearch ID'] || ''),
       divorce: isPrivate ? '' : (vitals['Divorce'] || ''),
       cremation: isPrivate ? '' : (vitals['Cremation'] || ''),
+      created: formatDate(fm.created),
     };
 
     people.push(person);

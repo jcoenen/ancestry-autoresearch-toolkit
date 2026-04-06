@@ -23,6 +23,7 @@ const researchLinks = [
   { to: '/immigration', label: 'Immigration Stories' },
   { to: '/cemeteries', label: 'Cemetery Browser' },
   { to: '/research-gaps', label: 'Research Gaps' },
+  { to: '/recent', label: 'Recent Additions' },
   { to: '/updates', label: "What's New" },
   { to: '/features', label: 'Features Guide' },
 ]

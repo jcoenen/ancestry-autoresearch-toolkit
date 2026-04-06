@@ -56,6 +56,7 @@ export interface Person {
   familySearchId: string;
   divorce: string;
   cremation: string;
+  created: string;
 }
 
 export interface MediaEntry {
@@ -89,6 +90,7 @@ export interface SourceEntry {
   ocrVerified: boolean | null;
   language: string;
   media: MediaEntry[];
+  created: string;
 }
 
 export interface Stats {
