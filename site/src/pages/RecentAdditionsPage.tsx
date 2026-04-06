@@ -55,6 +55,14 @@ export default function RecentAdditionsPage() {
   const allItems = useMemo<FeedItem[]>(() => {
     const items: FeedItem[] = []
 
+    // Build media path → source slug map (same as MediaGallery)
+    const mediaSourceMap = new Map<string, string>()
+    for (const s of sources) {
+      for (const m of s.media) {
+        mediaSourceMap.set(m.path, s.slug)
+      }
+    }
+
     for (const p of people) {
       if (p.privacy || !p.created) continue
       const bornYear = p.born ? p.born.split('-')[0] : null
@@ -93,12 +101,14 @@ export default function RecentAdditionsPage() {
       const date = m.dateDownloaded.split('T')[0].substring(0, 10)
       if (!date || date.length < 10) continue
       const label = m.description || m.path.split('/').pop() || m.path
+      const sourceSlug = mediaSourceMap.get(m.path)
+      const link = sourceSlug ? `/sources/${sourceSlug}` : `/gallery`
       items.push({
         date,
         type: 'media',
         id: m.path,
         name: label,
-        link: `/gallery`,
+        link,
         subtitle: m.type ? m.type.charAt(0).toUpperCase() + m.type.slice(1) : 'Media',
       })
     }
