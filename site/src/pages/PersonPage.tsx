@@ -145,6 +145,7 @@ function isMissingValue(v: string | undefined | null): boolean {
 
 function CompletenessCard({ person, personSources }: { person: Person; personSources: SourceEntry[] }) {
   const hasSourceType = (types: string[]) => personSources.some(s => types.includes(s.type))
+  const hasSourceTypeAsPrimary = (types: string[]) => personSources.some(s => types.includes(s.type) && s.person === person.id)
   const hasMediaType = (types: string[]) => person.media.some(m => types.includes(m.type))
 
   const bioFields = [
@@ -157,11 +158,11 @@ function CompletenessCard({ person, personSources }: { person: Person; personSou
     { label: 'Biography', ok: !!(person.biography && person.biography.trim()) },
   ]
   const docFields = [
-    { label: 'Obituary', ok: hasSourceType(['obituary']) },
+    { label: 'Obituary', ok: hasSourceTypeAsPrimary(['obituary']) },
     { label: 'Gravestone', ok: hasSourceType(['cemetery']) || hasMediaType(['gravestone', 'tombstone']) },
-    { label: 'Death cert', ok: hasSourceType(['death_certificate']) },
-    { label: 'Birth cert', ok: hasSourceType(['birth_certificate']) },
-    { label: 'Baptism', ok: hasSourceType(['baptism', 'church']) },
+    { label: 'Death cert', ok: hasSourceTypeAsPrimary(['death_certificate']) },
+    { label: 'Birth cert', ok: hasSourceTypeAsPrimary(['birth_certificate']) },
+    { label: 'Baptism', ok: hasSourceTypeAsPrimary(['baptism', 'church']) },
     { label: 'Marriage cert', ok: hasSourceType(['marriage_certificate', 'marriage']) },
     { label: 'Photo', ok: hasMediaType(['photo', 'portrait']) },
   ]

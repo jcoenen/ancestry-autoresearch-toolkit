@@ -213,21 +213,21 @@ export default function ResearchGapsPage() {
     const sourceMap = new Map<string, SourceEntry>()
     for (const s of sources) sourceMap.set(s.id, s)
 
-    function hasSourceType(p: Person, types: string[]): boolean {
+    function hasSourceType(p: Person, types: string[], primaryOnly = false): boolean {
       return p.sources.some(sid => {
         const s = sourceMap.get(sid)
-        return s !== undefined && types.includes(s.type)
+        return s !== undefined && types.includes(s.type) && (!primaryOnly || s.person === p.id)
       })
     }
     function hasMediaType(p: Person, types: string[]): boolean {
       return (p.media as MediaEntry[]).some(m => types.includes(m.type))
     }
 
-    const missingObituary = pub.filter(p => !hasSourceType(p, ['obituary']))
+    const missingObituary = pub.filter(p => !hasSourceType(p, ['obituary'], true))
     const missingGravestone = pub.filter(p => !hasSourceType(p, ['cemetery']) && !hasMediaType(p, ['gravestone', 'tombstone']))
-    const missingDeathCert = pub.filter(p => !hasSourceType(p, ['death_certificate']))
-    const missingBirthCert = pub.filter(p => !hasSourceType(p, ['birth_certificate']))
-    const missingBaptism = pub.filter(p => !hasSourceType(p, ['baptism', 'church']))
+    const missingDeathCert = pub.filter(p => !hasSourceType(p, ['death_certificate'], true))
+    const missingBirthCert = pub.filter(p => !hasSourceType(p, ['birth_certificate'], true))
+    const missingBaptism = pub.filter(p => !hasSourceType(p, ['baptism', 'church'], true))
     const missingMarriageCert = pub.filter(p => !hasSourceType(p, ['marriage_certificate', 'marriage']))
     const missingPhoto = pub.filter(p => !hasMediaType(p, ['photo', 'portrait']))
 
