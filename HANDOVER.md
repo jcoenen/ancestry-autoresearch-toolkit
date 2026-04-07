@@ -1,6 +1,25 @@
-# Handover — 2026-04-05
+# Handover — 2026-04-06
 
 ## What Was Done
+
+### Session 24: Fix completeness check — primary subject requirement
+
+**Bug fixed:** Being mentioned in a relative's obituary was falsely marking a person as having their own obituary (same bug applied to death cert, birth cert, baptism).
+
+**Root cause:** The methodology requires adding a source to every named person's `sources:` list. So `personSources` (filtered by `person.sources`) included sources where the person was merely mentioned. `hasSourceType(['obituary'])` then returned true for anyone named in any obituary.
+
+**Fix in `PersonPage.tsx`:**
+- Added `hasSourceTypeAsPrimary` helper: `personSources.some(s => types.includes(s.type) && s.person === person.id)`
+- Obituary, Death cert, Birth cert, Baptism now use `hasSourceTypeAsPrimary`
+- Marriage cert and Gravestone/Cemetery unchanged (legitimately multi-subject documents)
+
+**Fix in `ResearchGapsPage.tsx`:**
+- `hasSourceType` extended with `primaryOnly = false` param: adds `&& s.person === p.id` when true
+- Same four types use `primaryOnly: true`
+
+- **State:** 194 tests passing, TypeScript clean, pushed as `8a5fed6`
+
+---
 
 ### Session 23: Document completeness tracking
 
