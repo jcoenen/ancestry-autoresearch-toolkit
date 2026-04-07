@@ -368,9 +368,8 @@ const VTB_NODE_H = 120
 
 function buildCoupleNode(
   people: Person[], fatherId: string, motherId: string,
-  generation: number, maxGen: number,
+  generation: number,
 ): CoupleNode | null {
-  if (generation > maxGen) return null
   const father = fatherId ? people.find(p => p.id === fatherId) : null
   const mother = motherId ? people.find(p => p.id === motherId) : null
   const primary = father || mother
@@ -388,13 +387,13 @@ function buildCoupleNode(
     })
     .sort((a, b) => (a.born || '').localeCompare(b.born || ''))
 
-  const fatherNode = father ? buildCoupleNode(people, father.father, father.mother, generation + 1, maxGen) : null
-  const motherNode = mother ? buildCoupleNode(people, mother.father, mother.mother, generation + 1, maxGen) : null
+  const fatherNode = father ? buildCoupleNode(people, father.father, father.mother, generation + 1) : null
+  const motherNode = mother ? buildCoupleNode(people, mother.father, mother.mother, generation + 1) : null
 
   return { person: primary, spouse, marriageDate, children, fatherNode, motherNode, generation }
 }
 
-function buildPedigreeFromRoot(people: Person[], rootId: string, maxGen: number): CoupleNode | null {
+function buildPedigreeFromRoot(people: Person[], rootId: string): CoupleNode | null {
   const root = people.find(p => p.id === rootId)
   if (!root) return null
 
@@ -407,11 +406,11 @@ function buildPedigreeFromRoot(people: Person[], rootId: string, maxGen: number)
     .sort((a, b) => (a.born || '').localeCompare(b.born || ''))
 
   const fatherNode = root.father || root.mother
-    ? buildCoupleNode(people, root.father, root.mother, 1, maxGen) : null
+    ? buildCoupleNode(people, root.father, root.mother, 1) : null
 
   let motherNode: CoupleNode | null = null
   if (spouse && (spouse.father || spouse.mother)) {
-    motherNode = buildCoupleNode(people, spouse.father, spouse.mother, 1, maxGen)
+    motherNode = buildCoupleNode(people, spouse.father, spouse.mother, 1)
   }
 
   return { person: root, spouse, marriageDate: spouseRef?.marriageDate || '', children, fatherNode, motherNode, generation: 0 }
@@ -593,7 +592,7 @@ function VerticalDagreTree({ focusId, people, genderMap }: {
   }, [people, focusId])
 
   const { layoutNodes, edges } = useMemo(() => {
-    const tree = buildPedigreeFromRoot(people, focusId, 99)
+    const tree = buildPedigreeFromRoot(people, focusId)
     if (!tree) return { layoutNodes: [], edges: [] }
     const nodes: Node<VNodeData>[] = []
     const edgeList: Edge[] = []
