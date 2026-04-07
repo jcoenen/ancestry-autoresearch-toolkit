@@ -223,6 +223,48 @@
 */
 
 // =============================================================================
+// FUNCTION: downloadCurrentImage
+// Run on: any FamilySearch image viewer page (after navigating to the record
+//         and clicking "View Original Document" or arriving at the viewer URL)
+//
+// Usage:
+//   1. Navigate to the image viewer page
+//   2. Paste this function into browser_evaluate — it clicks Download, selects
+//      JPG Only, and triggers the download
+//   3. File lands at: .playwright-mcp/image.jpg
+//   4. Move it: Bash → mv .playwright-mcp/image.jpg <targetPath>
+//
+// Returns: { status: 'downloading' | 'button_not_found' | 'dialog_not_found' }
+// =============================================================================
+
+/*
+async () => {
+  // 1. Click the Download button (identified by aria-label, not CSS class)
+  const downloadBtn = document.querySelector('button[aria-label="Download"]');
+  if (!downloadBtn) return { status: 'button_not_found', url: window.location.href };
+  downloadBtn.click();
+
+  // 2. Wait briefly for dialog to render
+  await new Promise(r => setTimeout(r, 600));
+
+  // 3. Select "JPG Only" radio
+  const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+  const jpgRadio = radios.find(r => r.value === 'JPG Only');
+  if (!jpgRadio) return { status: 'dialog_not_found', radios: radios.map(r => r.value) };
+  jpgRadio.click();
+
+  // 4. Click the DOWNLOAD confirm button
+  await new Promise(r => setTimeout(r, 200));
+  const confirmBtn = Array.from(document.querySelectorAll('button'))
+    .find(b => b.innerText?.trim() === 'DOWNLOAD');
+  if (!confirmBtn) return { status: 'confirm_button_not_found' };
+  confirmBtn.click();
+
+  return { status: 'downloading', note: 'File will appear at .playwright-mcp/image.jpg — mv it to your target path' };
+}
+*/
+
+// =============================================================================
 // FUNCTION: extractSearchResults
 // Run on: https://www.familysearch.org/search/record/results?...
 // Returns: structured search results with parsed events
