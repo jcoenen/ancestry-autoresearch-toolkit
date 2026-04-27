@@ -21,35 +21,49 @@ export interface PublicScopeResult {
   outOfScope: ScopeRelationship[];
 }
 
-function addIfKnown(edges: Map<string, Set<string>>, from: string, to: string): void {
-  if (!from || !to || !edges.has(from) || !edges.has(to)) return;
-  edges.get(from)!.add(to);
-  edges.get(to)!.add(from);
-}
-
 export function calculatePublicScope(
   people: ScopeRelationship[],
   options: PublicScopeOptions,
 ): PublicScopeResult {
   const byId = new Map(people.map((p) => [p.id, p]));
-  const parentChildEdges = new Map(people.map((p) => [p.id, new Set<string>()]));
+  const parentToChildren = new Map(people.map((p) => [p.id, new Set<string>()]));
 
   for (const person of people) {
-    addIfKnown(parentChildEdges, person.id, person.father);
-    addIfKnown(parentChildEdges, person.id, person.mother);
+    if (person.father && parentToChildren.has(person.father)) {
+      parentToChildren.get(person.father)!.add(person.id);
+    }
+    if (person.mother && parentToChildren.has(person.mother)) {
+      parentToChildren.get(person.mother)!.add(person.id);
+    }
     for (const childId of person.children) {
-      addIfKnown(parentChildEdges, person.id, childId);
+      if (parentToChildren.has(childId)) {
+        parentToChildren.get(person.id)!.add(childId);
+      }
+    }
+  }
+
+  const ancestorIds = new Set<string>();
+  const ancestorQueue = byId.has(options.rootPersonId) ? [options.rootPersonId] : [];
+  while (ancestorQueue.length > 0) {
+    const id = ancestorQueue.shift()!;
+    if (ancestorIds.has(id)) continue;
+    ancestorIds.add(id);
+    const person = byId.get(id);
+    for (const parentId of [person?.father, person?.mother]) {
+      if (parentId && byId.has(parentId) && !ancestorIds.has(parentId)) {
+        ancestorQueue.push(parentId);
+      }
     }
   }
 
   const bloodIds = new Set<string>();
-  const queue = byId.has(options.rootPersonId) ? [options.rootPersonId] : [];
+  const queue = [...ancestorIds];
   while (queue.length > 0) {
     const id = queue.shift()!;
     if (bloodIds.has(id)) continue;
     bloodIds.add(id);
-    for (const next of parentChildEdges.get(id) ?? []) {
-      if (!bloodIds.has(next)) queue.push(next);
+    for (const childId of parentToChildren.get(id) ?? []) {
+      if (!bloodIds.has(childId)) queue.push(childId);
     }
   }
 
@@ -73,4 +87,3 @@ export function calculatePublicScope(
   const outOfScope = people.filter((p) => !allowedIds.has(p.id) && p.publicScope !== 'exclude');
   return { bloodIds, allowedIds, outOfScope };
 }
-
