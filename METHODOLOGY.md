@@ -25,7 +25,9 @@ persons:                        # Every genealogically relevant person: family
                                 # Display/extracted text only; not a relational key.
   - Person One
   - Person Two
-person_ids:                     # Optional but preferred relational links to person files.
+subject_person_ids:             # Primary subject(s) of this source. Required for obituaries.
+  - "I1"                        # Must also appear in person_ids.
+person_ids:                     # Relational links to every genealogically relevant person.
   - "I1"                        # Use GEDCOM IDs, never fuzzy/name matching.
   - "I2"
 families:
@@ -88,6 +90,8 @@ Use the reported `Next source ID` value. Do not assign source IDs by hand from `
    - Add the `source_id` to the person's `sources:` YAML array
    - Update any vital information fields that the source provides (birth date, death date, birthplace, etc.) with the source_id as the citation
    - Update the biography section with new information
+3. Add every genealogically relevant linked person to the source file's `person_ids:` array
+4. Add the primary subject(s) of the source to `subject_person_ids:`. For obituary sources, this is required and drives "has obituary" data-completeness logic.
    - Add the person's `gedcom_id` to the source file's `person_ids:` array when the source has a `persons:` list
 3. Run `npm run validate` to verify zero orphaned sources
 
@@ -310,7 +314,7 @@ npm run build:data   # Verify site picks up all sources
 
 ### Source Person IDs
 
-`persons:` is human-readable extracted text. It is not a key and must not be validated with fuzzy or normalized name matching. `person_ids:` is the relational link from a source to person files. Validation checks every `person_ids:` entry for a valid existing GEDCOM ID. Use `npm run validate -- --strict-source-person-ids` for new import/extractor work where every source with `persons:` must also have `person_ids:`.
+`persons:` is human-readable extracted text. It is not a key and must not be validated with fuzzy or normalized name matching. `person_ids:` is the broad relational link from a source to every genealogically relevant person file mentioned or covered by the source. `subject_person_ids:` identifies the primary subject(s) of the source, such as whose obituary it is. Validation checks every `person_ids:` and `subject_person_ids:` entry for a valid existing GEDCOM ID. Use `npm run validate -- --strict-source-person-ids` for new import/extractor work where every source with `persons:` must also have `person_ids:`.
 
 ## R2 Media Sync
 

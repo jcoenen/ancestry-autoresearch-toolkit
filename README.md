@@ -19,7 +19,7 @@ One toolkit, multiple family projects. Each family gets its own repo with this t
 
 - **Interactive family tree** — vertical expanding ancestors, full pedigree (dagre top-to-bottom), navigator (click-to-explore context window), and descendant views. Person selector with search. All views work for any person
 - **Person pages** — biography, vital information, source citations, media gallery per person
-- **Data completeness cards** — show biography and key-document status using relational source IDs (`person_ids`) so obituary/certificate coverage follows actual source links, not fuzzy name matching
+- **Data completeness cards** — show biography and key-document status using relational source IDs (`subject_person_ids` for source subjects, `person_ids` for broader links) so obituary/certificate coverage follows actual source links, not fuzzy name matching
 - **Source browser** — searchable/filterable table of all sources with full text and extracted facts
 - **Media gallery** — gravestones, portraits, newspaper clippings, documents
 - **Family Map** — full-screen interactive map showing family events geographically. Marker clustering from world to street level. Birth, death, marriage, burial, residence, immigration, and emigration events with color-coded markers. Migration path arcs connecting birthplace to death place. Time period slider, decade-by-decade animation, heat map mode. Family line and event type filters. Build-time geocoding via Nominatim with editable cache
@@ -49,7 +49,7 @@ The validation script (`npm run validate`) enforces:
 - Media index completeness (all 5 columns required)
 - Newspaper/document media linked to source files
 - Person media linkage checks so registered images are actually visible on relevant person pages
-- Source `person_ids` validation, including optional strict mode for source-person coverage
+- Source `person_ids` and `subject_person_ids` validation, including optional strict mode for source-person coverage
 - OCR verification status tracking (`ocr_verified: false` flagged as warning)
 - Spouse-children marriage grouping consistency
 
@@ -225,7 +225,7 @@ All rules are in `toolkit/METHODOLOGY.md`. Do not duplicate them here.
 - `people/Smith/Smith_John.md`
 ```
 
-The agent should follow the methodology when creating files, cross-linking sources, downloading images, and running validation. For data integrity, prefer GEDCOM IDs, source IDs, and `person_ids` over name matching. If an agent creates toolkit changes, commit them in the toolkit repo first, then update the family project's submodule pointer.
+The agent should follow the methodology when creating files, cross-linking sources, downloading images, and running validation. For data integrity, prefer GEDCOM IDs, source IDs, `subject_person_ids`, and `person_ids` over name matching. If an agent creates toolkit changes, commit them in the toolkit repo first, then update the family project's submodule pointer.
 
 ## Site Configuration
 

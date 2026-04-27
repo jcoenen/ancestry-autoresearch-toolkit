@@ -96,6 +96,7 @@ interface SourceEntry {
   file: string;
   person: string;
   personIds: string[];
+  subjectPersonIds: string[];
   date: string;
   publisher: string;
   type: string;
@@ -220,6 +221,7 @@ async function parseSourceFiles(): Promise<SourceEntry[]> {
       file: file,
       person: fm.title || '',
       personIds: Array.isArray(fm.person_ids) ? fm.person_ids.map(String) : [],
+      subjectPersonIds: Array.isArray(fm.subject_person_ids) ? fm.subject_person_ids.map(String) : [],
       date: fm.date_of_document ? String(fm.date_of_document) : '',
       publisher: fm.publisher || '',
       type: fm.source_type || '',

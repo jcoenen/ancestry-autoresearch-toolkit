@@ -217,7 +217,7 @@ export default function ResearchGapsPage() {
       return p.sources.some(sid => {
         const s = sourceMap.get(sid)
         return s !== undefined && types.includes(s.type) && (
-          !primaryOnly || s.personIds?.[0] === p.id || s.person === p.id
+          !primaryOnly || s.subjectPersonIds?.includes(p.id)
         )
       })
     }

@@ -100,6 +100,7 @@ function validateSourceFiles(sourceFiles: string[]): {
   claimedMedia: Set<string>;
   sourcePersons: Map<string, string[]>;
   sourcePersonIds: Map<string, string[]>;
+  sourceSubjectPersonIds: Map<string, string[]>;
   sourceMediaRefs: Map<string, string[]>;
 } {
   const result: ValidationResult = { errors: [], warnings: [] };
@@ -108,6 +109,7 @@ function validateSourceFiles(sourceFiles: string[]): {
   const claimedMedia = new Set<string>();
   const sourcePersons = new Map<string, string[]>(); // "sources/file" -> persons array
   const sourcePersonIds = new Map<string, string[]>(); // "sources/file" -> person_ids array
+  const sourceSubjectPersonIds = new Map<string, string[]>(); // "sources/file" -> subject_person_ids array
   const sourceMediaRefs = new Map<string, string[]>(); // file -> valid-format media paths
   let checked = 0;
 
@@ -229,8 +231,32 @@ function validateSourceFiles(sourceFiles: string[]): {
       }
     }
 
+    // subject_person_ids identifies who this source is primarily about.
+    // person_ids remains the broader "everyone genealogically relevant mentioned here" list.
+    if (fm.subject_person_ids !== undefined) {
+      if (!Array.isArray(fm.subject_person_ids) || fm.subject_person_ids.length === 0) {
+        result.errors.push(`sources/${file}: subject_person_ids must be a non-empty array of GEDCOM IDs`);
+      } else {
+        sourceSubjectPersonIds.set(`sources/${file}`, fm.subject_person_ids.map((p: unknown) => String(p)));
+      }
+    }
+
     // Check body sections for obituaries (Full Text required with actual content)
     if (fm.source_type === 'obituary') {
+      if (!sourceSubjectPersonIds.has(`sources/${file}`)) {
+        result.errors.push(`sources/${file}: obituary source missing subject_person_ids - do not infer obituary subject from person_ids order`);
+      }
+      if (!Array.isArray(fm.person_ids)) {
+        result.errors.push(`sources/${file}: obituary source missing person_ids - subject_person_ids must also be included in person_ids`);
+      }
+      if (Array.isArray(fm.subject_person_ids) && Array.isArray(fm.person_ids)) {
+        const personIdSet = new Set(fm.person_ids.map((p: unknown) => String(p)));
+        for (const subjectId of fm.subject_person_ids.map((p: unknown) => String(p))) {
+          if (!personIdSet.has(subjectId)) {
+            result.errors.push(`sources/${file}: subject_person_ids entry "${subjectId}" must also be present in person_ids`);
+          }
+        }
+      }
       if (!content.includes('## Full Text')) {
         result.errors.push(`sources/${file}: missing ## Full Text section`);
       } else {
@@ -292,7 +318,7 @@ function validateSourceFiles(sourceFiles: string[]): {
     }
   }
 
-  return { result, checked, sourceIds, sourceIdSet, claimedMedia, sourcePersons, sourcePersonIds, sourceMediaRefs };
+  return { result, checked, sourceIds, sourceIdSet, claimedMedia, sourcePersons, sourcePersonIds, sourceSubjectPersonIds, sourceMediaRefs };
 }
 
 // parseVitalTable is imported as parseVitalTableTuples from validate-helpers
@@ -686,6 +712,7 @@ async function main() {
   let claimedMedia = new Set<string>();
   let sourcePersons = new Map<string, string[]>();
   let sourcePersonIds = new Map<string, string[]>();
+  let sourceSubjectPersonIds = new Map<string, string[]>();
   let sourceMediaRefs = new Map<string, string[]>();
 
   if (existsSync(SOURCES_DIR)) {
@@ -697,6 +724,7 @@ async function main() {
     claimedMedia = srcValidation.claimedMedia;
     sourcePersons = srcValidation.sourcePersons;
     sourcePersonIds = srcValidation.sourcePersonIds;
+    sourceSubjectPersonIds = srcValidation.sourceSubjectPersonIds;
     sourceMediaRefs = srcValidation.sourceMediaRefs;
 
     const srcErrors = srcValidation.result.errors.length;
@@ -928,7 +956,7 @@ async function main() {
   }
 
   // ── Source Person IDs ──
-  // persons: is display/extracted text. person_ids: is the relational key list.
+  // persons: is display/extracted text. person_ids: and subject_person_ids: are relational key lists.
   const sourcePersonIdErrors: string[] = [];
   const sourcePersonIdWarnings: string[] = [];
   let sourcePersonIdsChecked = 0;
@@ -940,6 +968,17 @@ async function main() {
         sourcePersonIdErrors.push(`${sourceFile}: person_ids entry "${id}" is not a valid GEDCOM ID`);
       } else if (!allGedcomIds.has(id)) {
         sourcePersonIdErrors.push(`${sourceFile}: person_ids entry "${id}" does not exist in the vault`);
+      }
+    }
+  }
+
+  for (const [sourceFile, ids] of sourceSubjectPersonIds) {
+    for (const id of ids) {
+      sourcePersonIdsChecked++;
+      if (!GEDCOM_ID_PATTERN.test(id)) {
+        sourcePersonIdErrors.push(`${sourceFile}: subject_person_ids entry "${id}" is not a valid GEDCOM ID`);
+      } else if (!allGedcomIds.has(id)) {
+        sourcePersonIdErrors.push(`${sourceFile}: subject_person_ids entry "${id}" does not exist in the vault`);
       }
     }
   }
@@ -961,7 +1000,7 @@ async function main() {
   totalErrors += sourcePersonIdErrors.length;
   totalWarnings += sourcePersonIdWarnings.length;
 
-  console.log(`\nSource Person IDs: ${sourcePersonIdsChecked} IDs checked`);
+  console.log(`\nSource Person IDs: ${sourcePersonIdsChecked} person_ids/subject_person_ids checked`);
   if (sourcePersonIdErrors.length === 0 && sourcePersonIdWarnings.length === 0) {
     console.log(`  \u2713 All source person_ids entries are valid`);
   }
