@@ -72,6 +72,7 @@ export interface SourceEntry {
   id: string;
   file: string;
   person: string;
+  personIds: string[];
   date: string;
   publisher: string;
   type: string;

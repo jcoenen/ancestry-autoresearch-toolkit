@@ -216,7 +216,9 @@ export default function ResearchGapsPage() {
     function hasSourceType(p: Person, types: string[], primaryOnly = false): boolean {
       return p.sources.some(sid => {
         const s = sourceMap.get(sid)
-        return s !== undefined && types.includes(s.type) && (!primaryOnly || s.person === p.id)
+        return s !== undefined && types.includes(s.type) && (
+          !primaryOnly || s.personIds?.[0] === p.id || s.person === p.id
+        )
       })
     }
     function hasMediaType(p: Person, types: string[]): boolean {
