@@ -18,6 +18,7 @@ import {
   type ValidationResult,
   type PersonRelationships,
 } from './lib/validate-helpers.js';
+import { calculatePublicScope, type ScopeRelationship } from './lib/public-scope.js';
 
 // VAULT_ROOT env var points to the vault directory (e.g. Coenen_Genealogy/).
 // Falls back to ../../ for backward compatibility when site/ is inside the vault.
@@ -89,8 +90,36 @@ const ROOT = process.env.VAULT_ROOT
 const SOURCES_DIR = resolve(ROOT, 'sources');
 const PEOPLE_DIR = resolve(ROOT, 'people');
 const MEDIA_INDEX = resolve(ROOT, 'media', '_Media_Index.md');
+const CONFIG_FILE = resolve(ROOT, 'site-config.json');
+
+let siteConfig: Record<string, unknown> = {};
+if (existsSync(CONFIG_FILE)) {
+  siteConfig = JSON.parse(readFileSync(CONFIG_FILE, 'utf-8'));
+}
 
 console.log(`Vault root: ${ROOT}`);
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String) : [];
+}
+
+function publicScopeConfig(): {
+  enabled: boolean;
+  mode: 'warn' | 'error';
+  rootPersonId: string;
+  includeSpousesOfBloodRelatives: boolean;
+  allowPersonIds: string[];
+} {
+  const cfg = (siteConfig.publicScope ?? {}) as Record<string, unknown>;
+  const mode = cfg.mode === 'error' ? 'error' : 'warn';
+  return {
+    enabled: cfg.enabled === true,
+    mode,
+    rootPersonId: String(cfg.rootPersonId || siteConfig.rootPersonId || ''),
+    includeSpousesOfBloodRelatives: cfg.includeSpousesOfBloodRelatives !== false,
+    allowPersonIds: asStringArray(cfg.allowPersonIds),
+  };
+}
 
 function validateSourceFiles(sourceFiles: string[]): {
   result: ValidationResult;
@@ -330,12 +359,14 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
   personSourceRefs: Set<string>;
   gedcomIds: Map<string, string>;
   relationships: PersonRelationships[];
+  scopeRelationships: ScopeRelationship[];
   personMediaRefs: Map<string, string[]>;
 } {
   const result: ValidationResult = { errors: [], warnings: [] };
   const personSourceRefs = new Set<string>();
   const gedcomIds = new Map<string, string>(); // gedcom_id -> file
   const relationships: PersonRelationships[] = [];
+  const scopeRelationships: ScopeRelationship[] = [];
   const personMediaRefs = new Map<string, string[]>(); // file -> media ref paths
   let checked = 0;
 
@@ -593,9 +624,20 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
       childIds,
       spouseIds,
     });
+
+    scopeRelationships.push({
+      filePath: file,
+      name: fm.name || '',
+      id: fm.gedcom_id ? String(fm.gedcom_id) : '',
+      father: fm.father ? String(fm.father) : '',
+      mother: fm.mother ? String(fm.mother) : '',
+      children: childIds,
+      spouses: spouseIds,
+      publicScope: typeof fm.public_scope === 'string' ? fm.public_scope : undefined,
+    });
   }
 
-  return { result, checked, personSourceRefs, gedcomIds, relationships, personMediaRefs };
+  return { result, checked, personSourceRefs, gedcomIds, relationships, scopeRelationships, personMediaRefs };
 }
 
 interface MediaEntryInfo {
@@ -758,6 +800,7 @@ async function main() {
 
   // ── Person Files ──
   let relationships: PersonRelationships[] = [];
+  let scopeRelationships: ScopeRelationship[] = [];
   let personSourceRefs = new Set<string>();
   let personMediaRefs = new Map<string, string[]>();
   const allGedcomIds = new Set<string>();
@@ -773,6 +816,7 @@ async function main() {
 
     const pplValidation = validatePersonFiles(personFiles, sourceIdSet, allGedcomIds);
     relationships = pplValidation.relationships;
+    scopeRelationships = pplValidation.scopeRelationships;
     personSourceRefs = pplValidation.personSourceRefs;
     personMediaRefs = pplValidation.personMediaRefs;
 
@@ -952,6 +996,51 @@ async function main() {
     console.log(`  \u2717 ${biErrors} broken links:`);
     for (const e of biResult.errors) {
       console.log(`    ${e}`);
+    }
+  }
+
+  // ── Public Scope ──
+  {
+    const scopeConfig = publicScopeConfig();
+    if (scopeConfig.enabled) {
+      const publicScopeErrors: string[] = [];
+      const publicScopeWarnings: string[] = [];
+
+      if (!scopeConfig.rootPersonId) {
+        publicScopeErrors.push('site-config.json: publicScope.enabled is true but neither publicScope.rootPersonId nor rootPersonId is configured');
+        console.log(`\nPublic Scope: configuration incomplete`);
+      } else {
+        const scope = calculatePublicScope(scopeRelationships, scopeConfig);
+        console.log(`\nPublic Scope: ${scopeRelationships.length} people checked, ${scope.bloodIds.size} blood relatives, ${scope.allowedIds.size} publishable`);
+
+        if (scope.bloodIds.size === 0) {
+          publicScopeErrors.push(`site-config.json: public scope root "${scopeConfig.rootPersonId}" was not found in people/`);
+        }
+        for (const person of scope.outOfScope) {
+          const msg = `people/${person.filePath} (${person.id} ${person.name}): outside public scope — not connected to ${scopeConfig.rootPersonId} by parent/child blood links or as a spouse of a blood relative`;
+          if (scopeConfig.mode === 'error') publicScopeErrors.push(msg);
+          else publicScopeWarnings.push(msg);
+        }
+      }
+
+      totalErrors += publicScopeErrors.length;
+      totalWarnings += publicScopeWarnings.length;
+
+      if (publicScopeErrors.length === 0 && publicScopeWarnings.length === 0) {
+        console.log(`  \u2713 All people are inside configured public scope`);
+      }
+      if (publicScopeErrors.length > 0) {
+        console.log(`  \u2717 ${publicScopeErrors.length} errors:`);
+        for (const e of publicScopeErrors) console.log(`    ${e}`);
+      }
+      if (publicScopeWarnings.length > 0) {
+        if (verbose) {
+          console.log(`  ! ${publicScopeWarnings.length} warnings:`);
+          for (const w of publicScopeWarnings) console.log(`    ${w}`);
+        } else {
+          console.log(`  ! ${publicScopeWarnings.length} warnings (run with --verbose to see)`);
+        }
+      }
     }
   }
 

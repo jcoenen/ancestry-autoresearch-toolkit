@@ -13,6 +13,7 @@ import {
   applyPrivacyRedaction,
   redactCrossSpouseMarriageDates,
 } from './lib/build-helpers.js';
+import { calculatePublicScope } from './lib/public-scope.js';
 
 // VAULT_ROOT env var points to the vault directory (e.g. Coenen_Genealogy/).
 // Falls back to ../../ for backward compatibility when site/ is inside the vault.
@@ -80,6 +81,7 @@ interface PersonData {
   cremation: string;
   created: string;
   _mediaRefs: string[];
+  _publicScope?: string;
 }
 
 interface MediaEntry {
@@ -122,6 +124,28 @@ interface SourceEntry {
 function splitVitalList(val: string | undefined): string[] {
   if (!val || val.trim() === '—') return []
   return val.split(',').map(s => s.trim()).filter(Boolean)
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String) : [];
+}
+
+function publicScopeConfig(): {
+  enabled: boolean;
+  rootPersonId: string;
+  includeSpousesOfBloodRelatives: boolean;
+  allowPersonIds: string[];
+  excludeOutOfScopeFromSite: boolean;
+} {
+  const cfg = (siteConfig.publicScope ?? {}) as Record<string, unknown>;
+  const enabled = cfg.enabled === true;
+  return {
+    enabled,
+    rootPersonId: String(cfg.rootPersonId || siteConfig.rootPersonId || ''),
+    includeSpousesOfBloodRelatives: cfg.includeSpousesOfBloodRelatives !== false,
+    allowPersonIds: asStringArray(cfg.allowPersonIds),
+    excludeOutOfScopeFromSite: cfg.excludeOutOfScopeFromSite !== false,
+  };
 }
 
 const SOURCES_DIR = resolve(ROOT, 'sources');
@@ -358,9 +382,55 @@ async function main() {
       divorce: isPrivate ? '' : (vitals['Divorce'] || ''),
       cremation: isPrivate ? '' : (vitals['Cremation'] || ''),
       created: formatDate(fm.created),
+      _publicScope: typeof fm.public_scope === 'string' ? fm.public_scope : undefined,
     };
 
     people.push(person);
+  }
+
+  const scopeConfig = publicScopeConfig();
+  if (scopeConfig.enabled && scopeConfig.excludeOutOfScopeFromSite) {
+    const scope = calculatePublicScope(
+      people.map((p) => ({
+        id: p.id,
+        name: p.name,
+        filePath: p.filePath,
+        father: p.father,
+        mother: p.mother,
+        spouses: p.spouses.map((sp) => sp.id).filter(Boolean),
+        children: p.children.map((child) => child.id).filter(Boolean),
+        publicScope: p._publicScope,
+      })),
+      scopeConfig,
+    );
+
+    if (!scopeConfig.rootPersonId) {
+      console.warn('WARNING: publicScope.enabled is true but no rootPersonId is configured; no public-scope filtering applied');
+    } else {
+      const before = people.length;
+      const allowedIds = scope.allowedIds;
+      for (let i = people.length - 1; i >= 0; i--) {
+        if (!allowedIds.has(people[i].id)) people.splice(i, 1);
+      }
+      const publishedIds = new Set(people.map((p) => p.id));
+      for (const person of people) {
+        if (!publishedIds.has(person.father)) {
+          person.father = '';
+          person.fatherName = '';
+        }
+        if (!publishedIds.has(person.mother)) {
+          person.mother = '';
+          person.motherName = '';
+        }
+        person.spouses = person.spouses.filter((sp) => publishedIds.has(sp.id));
+        person.children = person.children.filter((child) => publishedIds.has(child.id));
+      }
+      console.log(`Public scope: ${people.length}/${before} people publishable (${scope.bloodIds.size} blood relatives + spouses/exceptions)`);
+    }
+  }
+
+  for (const person of people) {
+    delete (person as Partial<PersonData>)._publicScope;
   }
 
   // Parse media
@@ -389,7 +459,20 @@ async function main() {
   redactCrossSpouseMarriageDates(people);
 
   // Parse sources from actual source files
-  const sources = await parseSourceFiles();
+  let sources = await parseSourceFiles();
+  if (scopeConfig.enabled && scopeConfig.excludeOutOfScopeFromSite && scopeConfig.rootPersonId) {
+    const publishedIds = new Set(people.map((p) => p.id));
+    const before = sources.length;
+    sources = sources.filter((source) => {
+      const linkedIds = new Set([...source.personIds, ...source.subjectPersonIds]);
+      return linkedIds.size === 0 || [...linkedIds].some((id) => publishedIds.has(id));
+    });
+    for (const source of sources) {
+      source.personIds = source.personIds.filter((id) => publishedIds.has(id));
+      source.subjectPersonIds = source.subjectPersonIds.filter((id) => publishedIds.has(id));
+    }
+    console.log(`Public scope: ${sources.length}/${before} sources publishable`);
+  }
   console.log(`Found ${sources.length} source entries`);
 
   // Resolve source media refs the same way as person media
@@ -418,12 +501,18 @@ async function main() {
       publicMediaPaths.add(m.path);
     }
   }
-  const filteredMedia = media.filter(m =>
-    publicMediaPaths.has(m.path) || !privateMediaPaths.has(m.path)
-  );
+  const filteredMedia = scopeConfig.enabled && scopeConfig.excludeOutOfScopeFromSite
+    ? media.filter(m => publicMediaPaths.has(m.path))
+    : media.filter(m =>
+      publicMediaPaths.has(m.path) || !privateMediaPaths.has(m.path)
+    );
 
   // Calculate stats
   const publicPeople = people.filter(p => !p.privacy);
+  familySet.clear();
+  for (const person of people) {
+    if (person.family) familySet.add(person.family);
+  }
 
   const oldestWithApprox = publicPeople
     .filter(p => p.born)

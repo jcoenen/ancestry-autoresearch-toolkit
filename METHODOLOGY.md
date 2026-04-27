@@ -159,6 +159,28 @@ When a source lists someone's children, **ALL named children get person files** 
 
 **Do not skip children because they seem "too lateral."** Half-siblings, step-siblings, and out-of-bloodline children are one source discovery away from being genealogically critical. If the source names them, they get a file.
 
+### Public Scope Rules
+
+Projects may enable `publicScope` in `site-config.json` to keep the published site focused on the researcher's family graph:
+
+```json
+{
+  "rootPersonId": "I1",
+  "publicScope": {
+    "enabled": true,
+    "mode": "warn",
+    "rootPersonId": "I1",
+    "includeSpousesOfBloodRelatives": true,
+    "excludeOutOfScopeFromSite": true,
+    "allowPersonIds": []
+  }
+}
+```
+
+When enabled, the toolkit calculates blood relatives by walking parent/child links from the configured root person. Publishable people are those blood relatives plus spouses of blood relatives. This includes siblings, half-siblings, cousins, ancestors, descendants, and spouses of any of those people. It does **not** automatically include a spouse's parents, siblings, other spouses, or children from relationships outside the blood line.
+
+For evidence integrity, the vault may still contain source-only or research-lead people who are not publishable under this rule. The site builder omits them from public data when `excludeOutOfScopeFromSite` is true, and validation reports them according to `mode` (`warn` or `error`). Use `allowPersonIds` sparingly for intentional exceptions such as adopted/foster family members, household members treated as family, or a non-blood bridge person needed to explain a documented relationship.
+
 ### Confidence Rules (CRITICAL)
 
 Confidence level is based on the **quality and directness of sources**, not just whether data exists:
