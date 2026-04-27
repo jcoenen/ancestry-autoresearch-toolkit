@@ -94,6 +94,23 @@ These scripts are built for recurring cleanup and audit work across projects. Ru
 
 The cleanup tools intentionally prefer relational data already present in the vault. They do not invent authoritative links from fuzzy name matches. Use `--dry-run` first, review the proposed edits, then run without `--dry-run` when the changes are safe.
 
+### Browser Source Extractors
+
+The `toolkit/extractors/` directory contains browser-context extractors for research sites that commonly block static HTTP fetches or render important content client-side. These snippets are meant to be run with Playwright/browser tooling on the live page, usually through `browser_evaluate`.
+
+| Extractor | Use For |
+|---|---|
+| `extractors/findagrave.js` | Find a Grave memorial details, family links, photo tab image URLs, and photo metadata |
+| `extractors/familysearch.js` | FamilySearch record pages, related people tables, citations, and original-document image downloads |
+| `extractors/clinehanson.js` | Cline Hanson / Tukios obituary pages, obituary text, and rendered portrait image candidates |
+| `extractors/tng.js` | TNG genealogy person pages, including Little Chute History, with template/UI images filtered from media candidates |
+| `extractors/geni.js` | Geni profile details and research leads |
+| `extractors/digitalarkivet.py` | Digitalarkivet indexed searches that are available through public HTTP APIs |
+
+Use these extractors before concluding that a source has no photo, no document image, or no useful details. Bot-blocked pages, Cloudflare challenges, lazy-loaded images, and JavaScript-rendered obituary sites can make `curl`, `fetch`, and static scripts return empty or misleading results.
+
+`npm run extract:obituary` is a static first-pass helper. It is useful for quick triage on accessible obituary pages and for producing compact JSON from already-reachable HTML or direct image URLs. It is not a substitute for the browser extractors on Find a Grave, FamilySearch, Cline Hanson/Tukios, TNG genealogy sites, or any page where static fetches fail, return a bot-block page, or find no images despite a visual page having media.
+
 ## Quick Start
 
 ### 1. Create your family project repo

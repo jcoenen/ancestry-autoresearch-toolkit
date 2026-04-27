@@ -35,12 +35,13 @@ interface SourceAudit {
   personPortraits: string[];
   indexPortraits: string[];
   linkedPersonFiles: string[];
-  status: 'has_portrait' | 'missing_portrait' | 'checked_no_portrait' | 'no_url';
+  status: 'has_portrait' | 'has_person_portrait' | 'missing_portrait' | 'checked_no_portrait' | 'no_url';
   notes: string[];
 }
 
 interface PersonRef {
   file: string;
+  gedcomId: string;
   name: string;
   sources: string[];
   media: string[];
@@ -52,6 +53,11 @@ function asString(value: unknown): string {
 
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function hasCheckedNoPortraitStatus(fm: Record<string, unknown>): boolean {
+  return asString(fm.portrait_status) === 'checked_no_portrait'
+    || fm.portrait_checked_no_portrait === true;
 }
 
 function isPortraitPath(path: string): boolean {
@@ -125,6 +131,7 @@ async function loadPeople(): Promise<PersonRef[]> {
     if (fm.type !== 'person') continue;
     people.push({
       file,
+      gedcomId: asString(fm.gedcom_id),
       name: asString(fm.name),
       sources: asStringArray(fm.sources),
       media: asStringArray(fm.media),
@@ -149,13 +156,17 @@ async function audit(): Promise<{ all: SourceAudit[]; report: SourceAudit[] }> {
     const raw = readFileSync(resolve(SOURCES_DIR, file), 'utf-8');
     const { data: fm } = matter(raw);
     if (fm.type !== 'source' || fm.source_type !== 'obituary') continue;
+    const checkedNoPortrait = hasCheckedNoPortraitStatus(fm);
 
     const sourceId = asString(fm.source_id);
     const title = asString(fm.title);
     const url = asString(fm.url);
     const sourceMedia = asStringArray(fm.media);
     const sourcePortraits = sourceMedia.filter(isPortraitPath);
-    const linkedPeople = people.filter((person) => person.sources.includes(sourceId));
+    const subjectPersonIds = asStringArray(fm.subject_person_ids);
+    const linkedPeople = subjectPersonIds.length > 0
+      ? people.filter((person) => subjectPersonIds.includes(person.gedcomId))
+      : people.filter((person) => person.sources.includes(sourceId));
     const personPortraits = Array.from(new Set(linkedPeople.flatMap((person) => person.media.filter(isPortraitPath))));
     const allPortraits = Array.from(new Set([...sourcePortraits, ...personPortraits]));
     const indexPortraits = allPortraits.filter((path) => mediaIndexPortraits.has(path));
@@ -167,18 +178,28 @@ async function audit(): Promise<{ all: SourceAudit[]; report: SourceAudit[] }> {
     for (const portrait of allPortraits) {
       if (!mediaIndexPortraits.has(portrait)) notes.push(`portrait missing from _Media_Index.md: ${portrait}`);
     }
-    if (linkedPeople.length === 0) notes.push('no person file references this source');
+    if (subjectPersonIds.length === 0) {
+      notes.push('missing subject_person_ids; fell back to person source references');
+    }
+    if (linkedPeople.length === 0) notes.push('no subject person file found for this source');
 
     let status: SourceAudit['status'] = sourcePortraits.length > 0
       ? 'has_portrait'
-      : url
-        ? 'missing_portrait'
-        : 'no_url';
+      : personPortraits.length > 0
+        ? 'has_person_portrait'
+        : url
+          ? 'missing_portrait'
+          : 'no_url';
 
     const memorialId = findAGraveMemorialId(url);
     if (status === 'missing_portrait' && memorialId && checkedFindAGraveIds.has(memorialId)) {
       status = 'checked_no_portrait';
       notes.push('FindAGrave memorial checked; no portrait photo found');
+    }
+    if ((status === 'missing_portrait' || status === 'no_url') && checkedNoPortrait) {
+      status = 'checked_no_portrait';
+      const checkNote = asString(fm.portrait_check_notes);
+      notes.push(checkNote || 'source checked; no portrait photo found');
     }
 
     results.push({
@@ -211,10 +232,11 @@ function printReport(allResults: SourceAudit[], reportResults: SourceAudit[]): v
 
   console.log(`Vault: ${ROOT}`);
   console.log(`Obituary sources checked: ${allResults.length}`);
-  console.log(`  has portrait:     ${counts.has_portrait || 0}`);
-  console.log(`  missing portrait: ${counts.missing_portrait || 0}`);
+  console.log(`  has source portrait: ${counts.has_portrait || 0}`);
+  console.log(`  has person portrait: ${counts.has_person_portrait || 0}`);
+  console.log(`  missing portrait:    ${counts.missing_portrait || 0}`);
   console.log(`  checked no portrait: ${counts.checked_no_portrait || 0}`);
-  console.log(`  no URL:           ${counts.no_url || 0}`);
+  console.log(`  no URL:              ${counts.no_url || 0}`);
   if (missingOnly) console.log(`  shown below:       ${reportResults.length}`);
   console.log();
 

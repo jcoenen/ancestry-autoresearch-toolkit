@@ -3,7 +3,13 @@
  *
  * Fetches one obituary URL (or every URL from the portrait audit backlog) and
  * emits compact JSON. This intentionally avoids Playwright so it can be used as
- * a cheap first pass; callers can send only failures to a browser extractor.
+ * a cheap first pass on pages that are reachable by static HTTP.
+ *
+ * Important: this is not the authoritative extractor for bot-blocked or
+ * JavaScript-rendered source sites. Use the browser-context extractors in
+ * toolkit/extractors/ for Find a Grave, FamilySearch, Cline Hanson/Tukios, and
+ * similar primary-source workflows before concluding that media or details are
+ * absent.
  *
  * Usage:
  *   VAULT_ROOT=/path/to/vault npx tsx scripts/extract-obituary.ts --source obituaries/OBIT_Name.md
@@ -48,6 +54,11 @@ interface SourceTarget {
   sourceFile?: string;
   url: string;
   title?: string;
+}
+
+interface FetchResult {
+  html: string;
+  directImage?: ImageCandidate;
 }
 
 function argValue(name: string): string | undefined {
@@ -240,23 +251,38 @@ function extractText(html: string, site: ExtractResult['site']): { text: string;
   return { text: stripTags(html).slice(0, 12000), source: 'body fallback' };
 }
 
-async function fetchHtml(url: string): Promise<string> {
+async function fetchHtml(url: string, site: ExtractResult['site']): Promise<FetchResult> {
   const response = await fetch(url, {
     headers: {
-      'accept': 'text/html,application/xhtml+xml',
+      'accept': 'text/html,application/xhtml+xml,image/*',
       'user-agent': 'Mozilla/5.0 genealogy-obituary-extractor/1.0',
     },
   });
   if (!response.ok) throw new Error(`Fetch failed ${response.status} ${response.statusText}: ${url}`);
-  return response.text();
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.toLowerCase().startsWith('image/')) {
+    const kindGuess = classifyImage(url, 'direct image url obituary clipping', site);
+    return {
+      html: '',
+      directImage: {
+        url,
+        kindGuess,
+        confidence: kindGuess === 'unknown' ? 'low' : 'moderate',
+        sourceContext: 'direct image url',
+      },
+    };
+  }
+  return { html: await response.text() };
 }
 
 async function extract(target: SourceTarget): Promise<ExtractResult> {
-  const html = await fetchHtml(target.url);
   const site = siteFor(target.url);
+  const fetched = await fetchHtml(target.url, site);
+  const html = fetched.html;
   const title = titleFromHtml(html) || target.title || '';
-  const textResult = extractText(html, site);
-  const images = extractImages(html, target.url, site);
+  const textResult = html ? extractText(html, site) : { text: '', source: '' };
+  const images = html ? extractImages(html, target.url, site) : [];
+  if (fetched.directImage) images.push(fetched.directImage);
   const notes: string[] = [];
 
   if (site === 'findagrave' && images.length === 0) {
