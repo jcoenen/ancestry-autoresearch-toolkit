@@ -1,13 +1,13 @@
 # Genealogy Toolkit
 
-A complete toolkit for building and maintaining markdown-based genealogy vaults with AI-assisted research. Includes a full-featured React website, vault validation, data build pipeline, structured templates, media sync, and relational cleanup tools. It works well with coding agents such as [Claude Code](https://claude.ai/claude-code), Codex, or a human maintainer using the same scripts directly.
+A complete toolkit for building and maintaining markdown-based genealogy vaults with AI-assisted research. Includes a full-featured React website, vault validation, data build pipeline, structured templates, media sync, and relational cleanup tools. It works well with coding agents such as [Claude Code](https://claude.ai/claude-code), Codex, and other agentic coding tools.
 
 ## What This Is
 
 This toolkit powers a workflow where:
 
 1. **You research** using FindAGrave, FamilySearch, census records, church registers, newspapers, DNA results — any source
-2. **An assistant or maintainer helps** by downloading images, OCR'ing documents, creating structured person/source files with proper cross-linking, and enforcing data quality rules
+2. **An AI assistant helps** by downloading images, OCR'ing documents, creating structured person/source files with proper cross-linking, and enforcing data quality rules
 3. **The vault** (plain markdown + YAML frontmatter) is the single source of truth — human-readable, version-controlled, Obsidian-compatible
 4. **The site** is auto-generated from the vault — a fast, browseable family tree website you can deploy anywhere
 
