@@ -1,6 +1,6 @@
 # Genealogy Toolkit
 
-A complete toolkit for building and maintaining markdown-based genealogy vaults with AI-assisted research. Includes a full-featured React website, vault validation, data build pipeline, structured templates, media sync, and relational cleanup tools. It works well with coding agents such as [Claude Code](https://claude.ai/claude-code), Codex, and other agentic coding tools.
+A complete toolkit for building and maintaining markdown-based genealogy vaults with AI-assisted research. Includes a full-featured React website, vault validation, data build pipeline, structured templates, media sync, and relational cleanup tools. It works well with coding agents such as Claude Code, Codex, and other agentic coding tools.
 
 ## What This Is
 
