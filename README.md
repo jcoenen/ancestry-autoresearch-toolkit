@@ -1,13 +1,13 @@
-# Ancestry Autoresearch Toolkit
+# Genealogy Toolkit
 
-A complete toolkit for building and maintaining markdown-based genealogy vaults with AI-assisted research. Includes a full-featured React website, vault validation, data build pipeline, and structured templates — all designed to work with [Claude Code](https://claude.ai/claude-code) for automated genealogy research sessions.
+A complete toolkit for building and maintaining markdown-based genealogy vaults with AI-assisted research. Includes a full-featured React website, vault validation, data build pipeline, structured templates, media sync, and relational cleanup tools. It works well with coding agents such as [Claude Code](https://claude.ai/claude-code), Codex, or a human maintainer using the same scripts directly.
 
 ## What This Is
 
 This toolkit powers a workflow where:
 
 1. **You research** using FindAGrave, FamilySearch, census records, church registers, newspapers, DNA results — any source
-2. **Claude Code assists** by downloading images, OCR'ing documents, creating structured person/source files with proper cross-linking, and enforcing data quality rules
+2. **An assistant or maintainer helps** by downloading images, OCR'ing documents, creating structured person/source files with proper cross-linking, and enforcing data quality rules
 3. **The vault** (plain markdown + YAML frontmatter) is the single source of truth — human-readable, version-controlled, Obsidian-compatible
 4. **The site** is auto-generated from the vault — a fast, browseable family tree website you can deploy anywhere
 
@@ -19,6 +19,7 @@ One toolkit, multiple family projects. Each family gets its own repo with this t
 
 - **Interactive family tree** — vertical expanding ancestors, full pedigree (dagre top-to-bottom), navigator (click-to-explore context window), and descendant views. Person selector with search. All views work for any person
 - **Person pages** — biography, vital information, source citations, media gallery per person
+- **Data completeness cards** — show biography and key-document status using relational source IDs (`person_ids`) so obituary/certificate coverage follows actual source links, not fuzzy name matching
 - **Source browser** — searchable/filterable table of all sources with full text and extracted facts
 - **Media gallery** — gravestones, portraits, newspaper clippings, documents
 - **Family Map** — full-screen interactive map showing family events geographically. Marker clustering from world to street level. Birth, death, marriage, burial, residence, immigration, and emigration events with color-coded markers. Migration path arcs connecting birthplace to death place. Time period slider, decade-by-decade animation, heat map mode. Family line and event type filters. Build-time geocoding via Nominatim with editable cache
@@ -47,6 +48,8 @@ The validation script (`npm run validate`) enforces:
 - Vital Information field name validation (non-standard names break the site build)
 - Media index completeness (all 5 columns required)
 - Newspaper/document media linked to source files
+- Person media linkage checks so registered images are actually visible on relevant person pages
+- Source `person_ids` validation, including optional strict mode for source-person coverage
 - OCR verification status tracking (`ocr_verified: false` flagged as warning)
 - Spouse-children marriage grouping consistency
 
@@ -72,6 +75,24 @@ Ready-to-use markdown templates for:
 - Media naming conventions and index format
 - Cross-linking requirements
 - Change routing rules for multi-project setups
+
+### Data Quality Tools
+
+These scripts are built for recurring cleanup and audit work across projects. Run them from `toolkit/site` with `VAULT_ROOT=/path/to/vault`, or expose them as wrapper scripts in a family project.
+
+| Script | Purpose |
+|---|---|
+| `npm run next:gedcom-id` | Finds the next available `I###` person/GEDCOM ID without relying on a hand-maintained document |
+| `npm run next:source-id -- --type obituary` | Finds the next available source ID for a source type or prefix |
+| `npm run audit:source-person-links` | Audits source `person_ids` against person files and source references |
+| `npm run backfill:source-person-ids -- --dry-run` | Adds source `person_ids` from existing person source lists; uses existing IDs, not name matching |
+| `npm run backfill:person-media -- --dry-run` | Adds safe person `media:` refs from source media when a source has one clear primary person |
+| `npm run backfill:vital-links -- --dry-run` | Rewrites Vital Information spouse/child rows from existing frontmatter GEDCOM IDs |
+| `npm run audit:obituary-portraits` | Finds obituary sources with likely missing portrait images |
+| `npm run extract:obituary` | Extracts structured obituary text and candidate image URLs from supported obituary pages |
+| `npm run import:obituary-portrait` | Downloads a reviewed obituary portrait and wires it into media index, source, and person files |
+
+The cleanup tools intentionally prefer relational data already present in the vault. They do not invent authoritative links from fuzzy name matches. Use `--dry-run` first, review the proposed edits, then run without `--dry-run` when the changes are safe.
 
 ## Quick Start
 
@@ -101,7 +122,7 @@ The wizard walks you through:
 - Countries of origin and research goals
 - Optional GEDCOM import from an existing tree
 
-It creates the vault directory structure, person files, site config, vault-level docs, wrapper scripts, `.gitignore`, and `CLAUDE.md` — everything you need to start researching.
+It creates the vault directory structure, person files, site config, vault-level docs, wrapper scripts, `.gitignore`, and Claude Code instructions. Codex users can add an `AGENTS.md` at the family-project root with the same project-specific guidance.
 
 ### 4. Start the dev server
 
@@ -180,12 +201,12 @@ your-project/
 │   │   └── _Media_Index.md     ← Media manifest (tracked in git)
 │   └── site-config.json        ← Your site configuration
 ├── package.json                ← Wrapper scripts
-└── CLAUDE.md                   ← Claude Code instructions for your project
+└── AGENTS.md / CLAUDE.md       ← Agent instructions for your project
 ```
 
-## Using with Claude Code
+## Using With Coding Agents
 
-This toolkit is designed to work with [Claude Code](https://claude.ai/claude-code) for AI-assisted genealogy research. Your project's `CLAUDE.md` file tells Claude the rules:
+This toolkit is designed to work with agent-assisted research, including Claude Code and Codex. Put project-specific instructions in the file your agent reads, such as `AGENTS.md` for Codex or `CLAUDE.md` for Claude Code. Keep those files short and point them back to the shared methodology:
 
 ```markdown
 # YourFamily Genealogy Project
@@ -204,7 +225,7 @@ All rules are in `toolkit/METHODOLOGY.md`. Do not duplicate them here.
 - `people/Smith/Smith_John.md`
 ```
 
-Claude will then follow the methodology when creating files, cross-linking sources, downloading images, and running validation — enforcing data quality automatically.
+The agent should follow the methodology when creating files, cross-linking sources, downloading images, and running validation. For data integrity, prefer GEDCOM IDs, source IDs, and `person_ids` over name matching. If an agent creates toolkit changes, commit them in the toolkit repo first, then update the family project's submodule pointer.
 
 ## Site Configuration
 
@@ -262,6 +283,7 @@ VITE_MEDIA_BASE_URL="https://your-r2-bucket.r2.dev/" npm run build
 - **Markdown rendering**: react-markdown + remark-gfm
 - **Build scripts**: tsx (TypeScript execution)
 - **Validation**: Custom TypeScript validator
+- **Cleanup tooling**: Source/person ID audit, safe media backfill, vital-link backfill, next-ID helpers
 - **GEDCOM export**: Full GEDCOM 5.5.1 export (`npm run export:gedcom`)
 - **GEDCOM import**: Import GEDCOM 5.5.1 files as person markdown (`npm run import:gedcom <file.ged>`)
 - **Search**: fuse.js (client-side fuzzy search)
