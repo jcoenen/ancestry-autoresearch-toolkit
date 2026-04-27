@@ -7,6 +7,7 @@
  * Usage:
  *   VAULT_ROOT=/path/to/vault npx tsx scripts/import-obituary-portrait.ts \
  *     --source obituaries/OBIT_Coenen_Donald_2017.md \
+ *     --person-id I357 \
  *     --image-url https://... \
  *     --write
  */
@@ -32,6 +33,7 @@ interface PersonMatch {
   file: string;
   fullPath: string;
   name: string;
+  gedcomId: string;
   media: string[];
 }
 
@@ -68,15 +70,6 @@ function sourceYear(value: unknown, sourceFile: string): string {
     ? String(value.getUTCFullYear())
     : asString(value).match(/\d{4}/)?.[0];
   return fromValue || sourceFile.match(/_(\d{4})\.md$/)?.[1] || 'Undated';
-}
-
-function decedentFromSourceTitle(title: string): string {
-  return title
-    .replace(/^Obituary of\s+/i, '')
-    .replace(/^Obituary\s*[—:-]\s*/i, '')
-    .replace(/\s*\(\d{4}\)\s*$/, '')
-    .replace(/\s+Obituary.*$/i, '')
-    .trim();
 }
 
 function extensionFor(contentType: string, imageUrl: string): string {
@@ -125,7 +118,7 @@ function addFrontmatterMedia(raw: string, mediaPath: string): string {
   return `${frontmatter}\nmedia:\n${mediaLine}${body}`;
 }
 
-async function findPerson(sourceId: string, preferredName: string): Promise<PersonMatch | null> {
+async function findPerson(sourceId: string, personId?: string): Promise<PersonMatch> {
   const files = await glob('**/*.md', { cwd: PEOPLE_DIR });
   const matches: PersonMatch[] = [];
 
@@ -135,19 +128,37 @@ async function findPerson(sourceId: string, preferredName: string): Promise<Pers
     const { data: fm } = matter(raw);
     if (fm.type !== 'person') continue;
     const sources = asStringArray(fm.sources);
-    if (!sources.includes(sourceId)) continue;
+    const gedcomId = asString(fm.gedcom_id);
+    if (personId) {
+      if (gedcomId !== personId) continue;
+      if (!sources.includes(sourceId)) {
+        throw new Error(`Person ${personId} exists but does not reference source ${sourceId}`);
+      }
+    } else if (!sources.includes(sourceId)) {
+      continue;
+    }
     matches.push({
       file,
       fullPath,
       name: asString(fm.name),
+      gedcomId,
       media: asStringArray(fm.media),
     });
   }
 
-  const normalizedPreferred = preferredName.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-  return matches.find((person) => person.name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() === normalizedPreferred)
-    || matches[0]
-    || null;
+  if (personId) {
+    const match = matches[0];
+    if (!match) throw new Error(`Could not find person_id ${personId}`);
+    return match;
+  }
+
+  if (matches.length === 1) return matches[0];
+  if (matches.length === 0) throw new Error(`Could not find a person file referencing ${sourceId}`);
+
+  throw new Error(
+    `Multiple people reference ${sourceId}; specify --person-id. Matches: ` +
+    matches.map((person) => `${person.gedcomId} ${person.file}`).join(', ')
+  );
 }
 
 async function downloadImage(imageUrl: string, referer?: string): Promise<{ bytes: Uint8Array; extension: string; contentType: string }> {
@@ -179,6 +190,7 @@ function appendMediaIndexRow(raw: string, row: string): string {
 async function main(): Promise<void> {
   const source = argValue('--source');
   const imageUrl = argValue('--image-url');
+  const personId = argValue('--person-id');
   const descriptionArg = argValue('--description');
   const referer = argValue('--referer');
 
@@ -192,10 +204,8 @@ async function main(): Promise<void> {
   const sourceRaw = readFileSync(sourcePath, 'utf-8');
   const { data: sourceFm } = matter(sourceRaw);
   const sourceId = asString(sourceFm.source_id);
-  const people = asStringArray(sourceFm.persons);
-  const preferredName = decedentFromSourceTitle(asString(sourceFm.title)) || people[0] || '';
-  const person = await findPerson(sourceId, preferredName);
-  if (!person) throw new Error(`Could not find a person file referencing ${sourceId}`);
+  const sourcePersonIds = asStringArray(sourceFm.person_ids);
+  const person = await findPerson(sourceId, personId || (sourcePersonIds.length === 1 ? sourcePersonIds[0] : undefined));
 
   const year = sourceYear(sourceFm.date_of_document, source);
   const filename = `POR_${compactNameForFilename(person.name, person.file)}_Obit${year}`;

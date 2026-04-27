@@ -22,8 +22,12 @@ persons:                        # Every genealogically relevant person: family
                                 # members, spouses, children, siblings, in-laws.
                                 # Exclude incidental names (officiants, pallbearers,
                                 # funeral directors) UNLESS they are also family.
+                                # Display/extracted text only; not a relational key.
   - Person One
   - Person Two
+person_ids:                     # Optional but preferred relational links to person files.
+  - "I1"                        # Use GEDCOM IDs, never fuzzy/name matching.
+  - "I2"
 families:
   - Surname1
   - Surname2
@@ -62,10 +66,18 @@ tags: [genealogy, source, obituary, Surname1, Surname2]
 ### Source ID Assignment
 
 Next available IDs are determined by scanning existing source files:
+
 ```bash
-grep -r "source_id:" sources/ | sort
+npm run next:source-id
 ```
-Find the highest number per type and increment.
+
+For one source type, run:
+
+```bash
+npm run next:source-id -- --type OBIT
+```
+
+Use the reported `Next source ID` value. Do not assign source IDs by hand from `_Source_Index.md` or handoff notes.
 
 ### Mandatory Cross-Linking (CRITICAL)
 
@@ -76,7 +88,16 @@ Find the highest number per type and increment.
    - Add the `source_id` to the person's `sources:` YAML array
    - Update any vital information fields that the source provides (birth date, death date, birthplace, etc.) with the source_id as the citation
    - Update the biography section with new information
+   - Add the person's `gedcom_id` to the source file's `person_ids:` array when the source has a `persons:` list
 3. Run `npm run validate` to verify zero orphaned sources
+
+When adding or importing sources with populated `persons:` arrays, also run:
+
+```bash
+npm run validate -- --strict-source-person-ids
+```
+
+Legacy vaults may still have historical `persons:` entries without `person_ids:`, but new extractor/import work should treat missing `person_ids:` as incomplete until each genealogically relevant person either has a person file or is removed from `persons:` as incidental.
 
 **A source file without at least one person file referencing it is an incomplete operation.** The validation script catches these as "orphaned sources" — treat orphaned sources as errors, not warnings.
 
@@ -104,6 +125,16 @@ created: 2026-03-23
 tags: [genealogy, Surname, person]
 ---
 ```
+
+### GEDCOM ID Assignment
+
+Do not copy a "next GEDCOM ID" from handoff notes or other manually maintained documents. Person files are the source of truth. Before creating a new person file, run:
+
+```bash
+npm run next:gedcom-id
+```
+
+Use the reported `Next GEDCOM ID` value. The command scans `people/**/*.md`, reports the highest current ID, and flags duplicate or malformed `gedcom_id` values.
 
 ### When to Create a Person File (CRITICAL)
 
@@ -277,9 +308,9 @@ npm run validate     # Must pass with zero errors before committing
 npm run build:data   # Verify site picks up all sources
 ```
 
-### Persons Array Resolution
+### Source Person IDs
 
-Validation checks that every name in a source's `persons:` array matches an existing person file. Unresolved names are flagged as warnings. The `persons:` array is a contract — if you listed someone, they need a person file.
+`persons:` is human-readable extracted text. It is not a key and must not be validated with fuzzy or normalized name matching. `person_ids:` is the relational link from a source to person files. Validation checks every `person_ids:` entry for a valid existing GEDCOM ID. Use `npm run validate -- --strict-source-person-ids` for new import/extractor work where every source with `persons:` must also have `person_ids:`.
 
 ## R2 Media Sync
 

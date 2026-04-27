@@ -99,6 +99,7 @@ function validateSourceFiles(sourceFiles: string[]): {
   sourceIdSet: Set<string>;
   claimedMedia: Set<string>;
   sourcePersons: Map<string, string[]>;
+  sourcePersonIds: Map<string, string[]>;
   sourceMediaRefs: Map<string, string[]>;
 } {
   const result: ValidationResult = { errors: [], warnings: [] };
@@ -106,6 +107,7 @@ function validateSourceFiles(sourceFiles: string[]): {
   const sourceIdSet = new Set<string>();
   const claimedMedia = new Set<string>();
   const sourcePersons = new Map<string, string[]>(); // "sources/file" -> persons array
+  const sourcePersonIds = new Map<string, string[]>(); // "sources/file" -> person_ids array
   const sourceMediaRefs = new Map<string, string[]>(); // file -> valid-format media paths
   let checked = 0;
 
@@ -164,7 +166,9 @@ function validateSourceFiles(sourceFiles: string[]): {
       if (fm[field] === undefined || fm[field] === null || fm[field] === '') {
         // Downgrade to warning for fields that may not apply to archival/physical sources
         if (isArchival && (field === 'url' || field === 'date_of_document' || field === 'publisher')) {
-          result.warnings.push(`sources/${file}: ${field} is null (acceptable for ${fm.source_type})`);
+          continue;
+        } else if (field === 'url' && fm.source_type === 'obituary' && Array.isArray(fm.media)) {
+          continue;
         } else if (field === 'url' && fm.source_type === 'obituary') {
           // Obituaries from blocked funeral home sites may have empty URL
           result.warnings.push(`sources/${file}: url is empty (web-blocked source?)`);
@@ -216,13 +220,22 @@ function validateSourceFiles(sourceFiles: string[]): {
       }
     }
 
+    // Optional relational source-to-person links. Unlike persons:, these are stable keys.
+    if (fm.person_ids !== undefined) {
+      if (!Array.isArray(fm.person_ids)) {
+        result.errors.push(`sources/${file}: person_ids must be an array of GEDCOM IDs`);
+      } else {
+        sourcePersonIds.set(`sources/${file}`, fm.person_ids.map((p: unknown) => String(p)));
+      }
+    }
+
     // Check body sections for obituaries (Full Text required with actual content)
     if (fm.source_type === 'obituary') {
       if (!content.includes('## Full Text')) {
         result.errors.push(`sources/${file}: missing ## Full Text section`);
       } else {
         // Check that Full Text has actual blockquoted content, not just the heading
-        const fullTextMatch = content.match(/## Full Text\s*\n([\s\S]*?)(?=\n## |\n---|\Z)/);
+        const fullTextMatch = content.match(/## Full Text\s*\n([\s\S]*?)(?=\n## |\n---|$)/);
         const fullTextBody = fullTextMatch ? fullTextMatch[1].trim() : '';
         const hasBlockquote = fullTextBody.split('\n').some(l => l.startsWith('>'));
         if (!hasBlockquote) {
@@ -262,8 +275,8 @@ function validateSourceFiles(sourceFiles: string[]): {
       const hasDocument = content.includes('>') || content.includes('## Full Text') || content.includes('## Memorial Data');
       if (!hasDocument) {
         result.errors.push(`sources/${file}: no URL and no primary document content — source is unverified narrative only`);
-      } else {
-        result.warnings.push(`sources/${file}: url is null — primary document not yet located online`);
+        } else if (fm.source_type === 'obituary' && !Array.isArray(fm.media)) {
+          result.warnings.push(`sources/${file}: url is null — primary document not yet located online`);
       }
     }
 
@@ -279,7 +292,7 @@ function validateSourceFiles(sourceFiles: string[]): {
     }
   }
 
-  return { result, checked, sourceIds, sourceIdSet, claimedMedia, sourcePersons, sourceMediaRefs };
+  return { result, checked, sourceIds, sourceIdSet, claimedMedia, sourcePersons, sourcePersonIds, sourceMediaRefs };
 }
 
 // parseVitalTable is imported as parseVitalTableTuples from validate-helpers
@@ -291,14 +304,12 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
   personSourceRefs: Set<string>;
   gedcomIds: Map<string, string>;
   relationships: PersonRelationships[];
-  personNames: Set<string>;
   personMediaRefs: Map<string, string[]>;
 } {
   const result: ValidationResult = { errors: [], warnings: [] };
   const personSourceRefs = new Set<string>();
   const gedcomIds = new Map<string, string>(); // gedcom_id -> file
   const relationships: PersonRelationships[] = [];
-  const personNames = new Set<string>(); // normalized names for persons array resolution
   const personMediaRefs = new Map<string, string[]>(); // file -> media ref paths
   let checked = 0;
 
@@ -321,11 +332,6 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
 
     if (fm.type !== 'person') continue;
     checked++;
-
-    // Collect normalized name for persons array resolution
-    if (fm.name) {
-      personNames.add(String(fm.name).trim().toLowerCase());
-    }
 
     // Check required fields
     for (const field of REQUIRED_PERSON_FIELDS) {
@@ -389,7 +395,7 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
       for (const srcId of fm.sources) {
         personSourceRefs.add(srcId);
         if (!sourceIdSet.has(srcId)) {
-          result.warnings.push(
+          result.errors.push(
             `people/${file}: references source "${srcId}" which does not exist in sources/`
           );
         }
@@ -397,9 +403,7 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
 
       // Error if zero sources (unless confidence is speculative)
       if (fm.sources.length === 0) {
-        if (fm.confidence === 'speculative') {
-          result.warnings.push(`people/${file}: 0 sources cited (speculative — acceptable)`);
-        } else {
+        if (fm.confidence !== 'speculative') {
           result.errors.push(`people/${file}: 0 sources cited — add at least one source or set confidence: speculative`);
         }
       }
@@ -461,14 +465,15 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
 
     // Check that children and spouse entries have wikilinks or GEDCOM IDs
     for (const [field, value] of vitalTable) {
-      if (!value || value === '—') continue;
+      if (!value || value.trim().startsWith('—')) continue;
       const isChildrenField = field === 'Children' || /^Children \(/.test(field);
       const isSpouseField = field === 'Spouse' || /^Spouse \(/.test(field);
       if (isChildrenField) {
         const names = splitByComma(value);
         for (const name of names) {
           const trimmed = name.trim();
-          if (!trimmed || trimmed === '—') continue;
+          if (!trimmed || trimmed === '—' || /^\+?\s*\d+\s+unknown\b/i.test(trimmed)) continue;
+          if (/^\d+\s+children\b/i.test(trimmed)) continue;
           if (!trimmed.includes('[[') && !/\(I\d+/.test(trimmed)) {
             const cleanName = trimmed.replace(/^\d+\.\s*/, '').replace(/\s*\([^)]*\)/g, '').trim();
             result.warnings.push(
@@ -481,6 +486,7 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
         const trimmed = value.trim();
         if (!trimmed.includes('[[') && !/\(I\d+/.test(trimmed)) {
           const spouseName = trimmed.replace(/,\s*m\..*$/, '').replace(/\s*\([^)]*\)/g, '').trim();
+          if (!spouseName || /^(unknown|none)$/i.test(spouseName)) continue;
           result.warnings.push(
             `people/${file}: spouse "${spouseName}" has no wikilink or GEDCOM ID — will not link on site`
           );
@@ -563,7 +569,7 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
     });
   }
 
-  return { result, checked, personSourceRefs, gedcomIds, relationships, personNames, personMediaRefs };
+  return { result, checked, personSourceRefs, gedcomIds, relationships, personMediaRefs };
 }
 
 interface MediaEntryInfo {
@@ -638,7 +644,7 @@ function validateMediaIndex(): { result: ValidationResult; entryCount: number; n
 
     // Check source URL starts with https://
     const sourceUrl = parts[2];
-    if (sourceUrl && !sourceUrl.startsWith('https://')) {
+    if (sourceUrl && sourceUrl !== 'local' && sourceUrl !== '—' && !sourceUrl.startsWith('https://')) {
       result.warnings.push(
         `_Media_Index.md line ${i + 1}: source URL does not start with https://`
       );
@@ -667,6 +673,7 @@ function validateMediaIndex(): { result: ValidationResult; entryCount: number; n
 
 async function main() {
   const verbose = process.argv.includes('--verbose');
+  const strictSourcePersonIds = process.argv.includes('--strict-source-person-ids');
   console.log('Validating vault...\n');
 
   let totalErrors = 0;
@@ -678,6 +685,7 @@ async function main() {
   let sourceIdSet = new Set<string>();
   let claimedMedia = new Set<string>();
   let sourcePersons = new Map<string, string[]>();
+  let sourcePersonIds = new Map<string, string[]>();
   let sourceMediaRefs = new Map<string, string[]>();
 
   if (existsSync(SOURCES_DIR)) {
@@ -688,6 +696,7 @@ async function main() {
     sourceIdSet = srcValidation.sourceIdSet;
     claimedMedia = srcValidation.claimedMedia;
     sourcePersons = srcValidation.sourcePersons;
+    sourcePersonIds = srcValidation.sourcePersonIds;
     sourceMediaRefs = srcValidation.sourceMediaRefs;
 
     const srcErrors = srcValidation.result.errors.length;
@@ -722,14 +731,13 @@ async function main() {
   // ── Person Files ──
   let relationships: PersonRelationships[] = [];
   let personSourceRefs = new Set<string>();
-  let personNames = new Set<string>();
   let personMediaRefs = new Map<string, string[]>();
+  const allGedcomIds = new Set<string>();
 
   if (existsSync(PEOPLE_DIR)) {
     const personFiles = await glob('**/*.md', { cwd: PEOPLE_DIR });
 
     // Pre-pass: collect all GEDCOM IDs so relationship validation can check references
-    const allGedcomIds = new Set<string>();
     for (const file of personFiles) {
       const { data: fm } = matter(readFileSync(resolve(PEOPLE_DIR, file), 'utf-8'));
       if (fm.type === 'person' && fm.gedcom_id) allGedcomIds.add(String(fm.gedcom_id));
@@ -738,7 +746,6 @@ async function main() {
     const pplValidation = validatePersonFiles(personFiles, sourceIdSet, allGedcomIds);
     relationships = pplValidation.relationships;
     personSourceRefs = pplValidation.personSourceRefs;
-    personNames = pplValidation.personNames;
     personMediaRefs = pplValidation.personMediaRefs;
 
     const pplErrors = pplValidation.result.errors.length;
@@ -920,38 +927,58 @@ async function main() {
     }
   }
 
-  // ── Persons Array Resolution ──
-  // Check that every name in a source's persons: array has a matching person file.
-  // Uses case-insensitive matching on the person file's name field.
-  const personsChecked = new Set<string>();
-  const unresolvedPersons: string[] = [];
+  // ── Source Person IDs ──
+  // persons: is display/extracted text. person_ids: is the relational key list.
+  const sourcePersonIdErrors: string[] = [];
+  const sourcePersonIdWarnings: string[] = [];
+  let sourcePersonIdsChecked = 0;
 
-  for (const [sourceFile, persons] of sourcePersons) {
-    for (const personName of persons) {
-      const normalized = personName.trim().toLowerCase();
-      if (!normalized) continue;
-      const key = `${sourceFile}:${normalized}`;
-      if (personsChecked.has(key)) continue;
-      personsChecked.add(key);
-
-      if (!personNames.has(normalized)) {
-        unresolvedPersons.push(`${sourceFile}: "${personName}" in persons array — no matching person file found`);
-        totalWarnings++;
+  for (const [sourceFile, ids] of sourcePersonIds) {
+    for (const id of ids) {
+      sourcePersonIdsChecked++;
+      if (!GEDCOM_ID_PATTERN.test(id)) {
+        sourcePersonIdErrors.push(`${sourceFile}: person_ids entry "${id}" is not a valid GEDCOM ID`);
+      } else if (!allGedcomIds.has(id)) {
+        sourcePersonIdErrors.push(`${sourceFile}: person_ids entry "${id}" does not exist in the vault`);
       }
     }
   }
 
-  console.log(`\nPersons Array Resolution: ${personsChecked.size} name-source pairs checked`);
-  if (unresolvedPersons.length === 0) {
-    console.log(`  \u2713 All persons in source files have matching person files`);
+  if (strictSourcePersonIds) {
+    for (const [sourceFile, persons] of sourcePersons) {
+      if (persons.length > 0 && !sourcePersonIds.has(sourceFile)) {
+        sourcePersonIdErrors.push(`${sourceFile}: has persons: display names but no relational person_ids: list`);
+      }
+    }
   } else {
+    for (const [sourceFile, persons] of sourcePersons) {
+      if (persons.length > 0 && !sourcePersonIds.has(sourceFile)) {
+        sourcePersonIdWarnings.push(`${sourceFile}: persons: is display text only; add person_ids: for relational source-to-person links`);
+      }
+    }
+  }
+
+  totalErrors += sourcePersonIdErrors.length;
+  totalWarnings += sourcePersonIdWarnings.length;
+
+  console.log(`\nSource Person IDs: ${sourcePersonIdsChecked} IDs checked`);
+  if (sourcePersonIdErrors.length === 0 && sourcePersonIdWarnings.length === 0) {
+    console.log(`  \u2713 All source person_ids entries are valid`);
+  }
+  if (sourcePersonIdErrors.length > 0) {
+    console.log(`  \u2717 ${sourcePersonIdErrors.length} errors:`);
+    for (const e of sourcePersonIdErrors) {
+      console.log(`    ${e}`);
+    }
+  }
+  if (sourcePersonIdWarnings.length > 0) {
     if (verbose) {
-      console.log(`  ! ${unresolvedPersons.length} unresolved:`);
-      for (const w of unresolvedPersons) {
+      console.log(`  ! ${sourcePersonIdWarnings.length} warnings:`);
+      for (const w of sourcePersonIdWarnings) {
         console.log(`    ${w}`);
       }
     } else {
-      console.log(`  ! ${unresolvedPersons.length} unresolved (run with --verbose to see)`);
+      console.log(`  ! ${sourcePersonIdWarnings.length} warnings (run with --verbose to see)`);
     }
   }
 
