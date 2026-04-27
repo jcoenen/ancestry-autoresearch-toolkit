@@ -4,6 +4,7 @@ import { useSourceBySlug, useData, usePersonByName, MEDIA_BASE } from '../useDat
 import type { MediaEntry } from '../types'
 import { useLightbox } from '../hooks/useLightbox'
 import Lightbox from '../components/Lightbox'
+import type { Person } from '../types'
 
 function PersonMention({ name }: { name: string }) {
   const person = usePersonByName(name)
@@ -51,8 +52,27 @@ export default function SourceDetailPage() {
   )
   const mediaLightbox = useLightbox(imageMedia)
 
-  // Find people in the vault that cite this source
+  const subjectPersonIds = new Set(source.subjectPersonIds || [])
+  const linkedPeople = useMemo(() => {
+    const byId = new Map(people.map(p => [p.id, p]))
+    const seen = new Set<string>()
+    const result: Person[] = []
+
+    for (const id of [...(source.subjectPersonIds || []), ...(source.personIds || [])]) {
+      const person = byId.get(id)
+      if (person && !seen.has(person.id)) {
+        seen.add(person.id)
+        result.push(person)
+      }
+    }
+
+    return result
+  }, [people, source.personIds, source.subjectPersonIds])
+
+  // Find people in the vault that cite this source. Keep this separate from
+  // linkedPeople because older sources may not have person_ids backfilled.
   const citingPeople = people.filter(p => p.sources.includes(source.id))
+  const quickPeople = linkedPeople.length > 0 ? linkedPeople : citingPeople
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
@@ -121,6 +141,37 @@ export default function SourceDetailPage() {
           </table>
         </div>
       </section>
+
+      {/* Linked People */}
+      {quickPeople.length > 0 && (
+        <section className="mb-6 rounded-lg border border-amber-200 bg-amber-50/70 p-4">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-amber-900">Linked People</h2>
+            <span className="text-xs text-amber-800">
+              {quickPeople.length} {quickPeople.length === 1 ? 'person' : 'people'}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {quickPeople.map(person => {
+              const isSubject = subjectPersonIds.has(person.id)
+              return (
+                <Link
+                  key={person.id}
+                  to={`/people/${person.slug}`}
+                  className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-800 hover:border-amber-400 hover:bg-amber-100 hover:no-underline"
+                >
+                  <span>{person.name}</span>
+                  {isSubject && (
+                    <span className="rounded-full bg-amber-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white">
+                      subject
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Full Text */}
       {source.fullText && (
