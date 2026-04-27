@@ -192,7 +192,7 @@ export function inferMediaType(path: string): string {
   if (path.startsWith('portraits/')) return 'portrait';
   if (path.startsWith('documents/')) return 'document';
   if (path.startsWith('newspapers/')) return 'newspaper';
-  if (path.startsWith('group_photos/')) return 'group_photo';
+  if (path.startsWith('group_photos/') || path.startsWith('group/')) return 'group_photo';
   if (path.startsWith('scans/')) return 'scan';
   return 'other';
 }

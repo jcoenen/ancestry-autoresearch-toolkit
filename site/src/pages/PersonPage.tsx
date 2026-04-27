@@ -161,7 +161,7 @@ function CompletenessCard({ person, personSources }: { person: Person; personSou
   ]
   const docFields = [
     { label: 'Obituary', ok: hasSourceTypeAsPrimary(['obituary']) },
-    { label: 'Gravestone', ok: hasSourceType(['cemetery']) || hasMediaType(['gravestone', 'tombstone']) },
+    { label: 'Gravestone', ok: hasSourceType(['cemetery', 'cemetery_memorial']) || hasMediaType(['gravestone', 'tombstone']) },
     { label: 'Death cert', ok: hasSourceTypeAsPrimary(['death_certificate']) },
     { label: 'Birth cert', ok: hasSourceTypeAsPrimary(['birth_certificate']) },
     { label: 'Baptism', ok: hasSourceTypeAsPrimary(['baptism', 'church']) },

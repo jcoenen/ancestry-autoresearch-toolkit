@@ -226,7 +226,7 @@ export default function ResearchGapsPage() {
     }
 
     const missingObituary = pub.filter(p => !hasSourceType(p, ['obituary'], true))
-    const missingGravestone = pub.filter(p => !hasSourceType(p, ['cemetery']) && !hasMediaType(p, ['gravestone', 'tombstone']))
+    const missingGravestone = pub.filter(p => !hasSourceType(p, ['cemetery', 'cemetery_memorial']) && !hasMediaType(p, ['gravestone', 'tombstone']))
     const missingDeathCert = pub.filter(p => !hasSourceType(p, ['death_certificate'], true))
     const missingBirthCert = pub.filter(p => !hasSourceType(p, ['birth_certificate'], true))
     const missingBaptism = pub.filter(p => !hasSourceType(p, ['baptism', 'church'], true))
