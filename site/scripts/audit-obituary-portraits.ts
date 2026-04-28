@@ -116,6 +116,22 @@ function parseCheckedFindAGraveMemorials(): Set<string> {
   return checked;
 }
 
+function parseCheckedNoPortraitSources(): Set<string> {
+  const checked = new Set<string>();
+  if (!existsSync(MEDIA_INDEX)) return checked;
+
+  const raw = readFileSync(MEDIA_INDEX, 'utf-8');
+  const section = raw.match(/## Obituary Sources Checked — No Portrait[\s\S]*?(?=\n---|\n## |$)/)?.[0] || '';
+
+  for (const line of section.split('\n')) {
+    const match = line.match(/^\|\s*(SRC-[A-Z]+-\d+)\s*\||^-\s*(SRC-[A-Z]+-\d+)\b/);
+    const sourceId = match?.[1] || match?.[2];
+    if (sourceId) checked.add(sourceId);
+  }
+
+  return checked;
+}
+
 function findAGraveMemorialId(url: string): string {
   return url.match(/findagrave\.com\/memorial\/(\d+)/)?.[1] || '';
 }
@@ -148,6 +164,7 @@ async function audit(): Promise<{ all: SourceAudit[]; report: SourceAudit[] }> {
 
   const mediaIndexPortraits = parseMediaIndexPortraits();
   const checkedFindAGraveIds = parseCheckedFindAGraveMemorials();
+  const checkedNoPortraitSourceIds = parseCheckedNoPortraitSources();
   const people = await loadPeople();
   const sourceFiles = await glob('obituaries/*.md', { cwd: SOURCES_DIR });
   const results: SourceAudit[] = [];
@@ -196,7 +213,8 @@ async function audit(): Promise<{ all: SourceAudit[]; report: SourceAudit[] }> {
       status = 'checked_no_portrait';
       notes.push('FindAGrave memorial checked; no portrait photo found');
     }
-    if ((status === 'missing_portrait' || status === 'no_url') && checkedNoPortrait) {
+    if ((status === 'missing_portrait' || status === 'no_url')
+      && (checkedNoPortrait || checkedNoPortraitSourceIds.has(sourceId))) {
       status = 'checked_no_portrait';
       const checkNote = asString(fm.portrait_check_notes);
       notes.push(checkNote || 'source checked; no portrait photo found');
