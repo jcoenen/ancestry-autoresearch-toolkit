@@ -76,6 +76,8 @@ const VARIANT_GROUPS = [
   ['stolzman', 'stoltzman', 'stolzmann'],
   ['bohman', 'bohmann', 'bowman'],
   ['conley', 'connelly', 'connely'],
+  ['elizabeth', 'eliza', 'liz', 'lizzie', 'beth', 'betty', 'bess'],
+  ['raphael', 'rafael', 'ray', 'raymond', 'rafe'],
 ]
 
 const SEARCH_KEYS = [
@@ -260,20 +262,58 @@ function compareResults(a: SearchResult, b: SearchResult): number {
 
 function boostedScore(item: SearchDocument, fuseScore: number, query: string): number {
   const q = normalizeForSearch(query)
+  const queryTokens = tokenizeForSearch(query)
   const title = normalizeForSearch(item.title)
   const name = normalizeForSearch(item.searchName)
+  const aliases = normalizeForSearch(item.searchAliases)
   const id = normalizeForSearch(item.searchId)
+  const nameTokens = tokenizeForSearch([
+    item.title,
+    item.searchName,
+    expandGenealogyVariants([item.title, item.searchName].join(' ')),
+    item.marriedName?.join(' ') || '',
+  ].join(' '))
+  const searchableTokens = tokenizeForSearch([
+    item.title,
+    item.searchName,
+    item.searchAliases,
+    item.searchFamily,
+    item.searchRelations,
+    item.searchPlaces,
+    item.searchBiography,
+    item.searchFullText,
+    item.searchRecord,
+    item.searchNotes,
+    item.searchExtractedFacts,
+    item.searchMedia,
+  ].join(' '))
+  const nameCoverage = tokenCoverage(queryTokens, nameTokens)
+  const overallCoverage = tokenCoverage(queryTokens, searchableTokens)
+  const nameQuery = looksLikeNameQuery(queryTokens)
 
   let score = fuseScore
 
   if (title === q || name === q || id.split(/\s+/).includes(q)) score -= 0.45
   else if (title.startsWith(q) || name.startsWith(q)) score -= 0.3
-  else if (title.includes(q) || name.includes(q)) score -= 0.18
+  else if (title.includes(q) || name.includes(q) || aliases.includes(q)) score -= 0.18
   else if (id.includes(q)) score -= 0.12
 
-  if (item.type === 'person') score -= 0.02
+  if (queryTokens.length > 1) {
+    if (nameCoverage === 1) score -= tokensAppearInOrder(queryTokens, nameTokens) ? 0.58 : 0.48
+    else if (nameCoverage >= 0.75) score -= 0.3
+    else if (nameCoverage >= 0.5) score -= 0.12
 
-  return Math.max(0, score)
+    if (overallCoverage === 1) score -= 0.1
+
+    if (nameQuery && item.type === 'person' && nameCoverage < 1) score += (1 - nameCoverage) * 0.45
+    if (nameQuery && item.type !== 'person' && nameCoverage < 1) score += (1 - nameCoverage) * 0.18
+  } else if (queryTokens.length === 1 && nameCoverage === 1) {
+    score -= 0.12
+  }
+
+  if (item.type === 'person') score -= 0.03
+
+  return Math.max(-1, score)
 }
 
 function withSearchAliases<T extends SearchDocument>(document: T): T {
@@ -311,6 +351,32 @@ function normalizeForSearch(value: string): string {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
+}
+
+function tokenizeForSearch(value: string): string[] {
+  return normalizeForSearch(value).split(/\s+/).filter(Boolean)
+}
+
+function tokenCoverage(queryTokens: string[], valueTokens: string[]): number {
+  if (queryTokens.length === 0) return 0
+  const valueSet = new Set(valueTokens)
+  const matched = queryTokens.filter(token => valueSet.has(token)).length
+  return matched / queryTokens.length
+}
+
+function tokensAppearInOrder(queryTokens: string[], valueTokens: string[]): boolean {
+  let nextQueryIndex = 0
+
+  for (const token of valueTokens) {
+    if (token === queryTokens[nextQueryIndex]) nextQueryIndex += 1
+    if (nextQueryIndex === queryTokens.length) return true
+  }
+
+  return false
+}
+
+function looksLikeNameQuery(tokens: string[]): boolean {
+  return tokens.length >= 2 && tokens.length <= 4 && tokens.every(token => /^[a-z]+$/.test(token))
 }
 
 const FIELD_LABELS: Record<string, string> = {
