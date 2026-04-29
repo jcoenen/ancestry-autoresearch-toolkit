@@ -100,6 +100,39 @@ const SEARCH_KEYS = [
   { name: 'searchNotes', weight: 0.5 },
 ]
 
+const EXACT_SEARCH_FIELDS: (keyof SearchDocument)[] = [
+  'searchId',
+  'searchName',
+  'searchAliases',
+  'searchFamily',
+  'searchRelations',
+  'searchDates',
+  'searchPlaces',
+  'searchOccupation',
+  'searchLifeEvents',
+  'searchRecord',
+  'searchPublisher',
+  'searchSources',
+  'searchMedia',
+  'searchExtractedFacts',
+  'searchFullText',
+  'searchBiography',
+  'searchNotes',
+]
+
+const EXACT_FIELD_PRIORITY: Partial<Record<keyof SearchDocument, number>> = {
+  searchId: 0.01,
+  searchName: 0.02,
+  searchAliases: 0.03,
+  searchFamily: 0.04,
+  searchRecord: 0.05,
+  searchExtractedFacts: 0.06,
+  searchFullText: 0.07,
+  searchNotes: 0.08,
+  searchMedia: 0.09,
+  searchBiography: 0.1,
+}
+
 export function useSearch() {
   const { people, sources, media } = useData()
 
@@ -229,6 +262,9 @@ export function useSearch() {
     }
 
     return {
+      peopleDocs,
+      sourceDocs,
+      mediaDocs,
       people: new Fuse(peopleDocs, fuseOptions),
       sources: new Fuse(sourceDocs, fuseOptions),
       media: new Fuse(mediaDocs, fuseOptions),
@@ -238,9 +274,18 @@ export function useSearch() {
   const search = useCallback((query: string): GroupedSearchResults => {
     if (!query || query.length < 2) return { people: [], sources: [], media: [], total: 0 }
 
-    const people = indexes.people.search(query, { limit: 60 }).map(r => toSearchResult(r, query)).sort(compareResults)
-    const sources = indexes.sources.search(query, { limit: 60 }).map(r => toSearchResult(r, query)).sort(compareResults)
-    const media = indexes.media.search(query, { limit: 40 }).map(r => toSearchResult(r, query)).sort(compareResults)
+    const people = mergeResults(
+      exactKeywordResults(indexes.peopleDocs, query),
+      indexes.people.search(query, { limit: 60 }).map(r => toSearchResult(r, query)),
+    ).sort(compareResults).slice(0, 60)
+    const sources = mergeResults(
+      exactKeywordResults(indexes.sourceDocs, query),
+      indexes.sources.search(query, { limit: 60 }).map(r => toSearchResult(r, query)),
+    ).sort(compareResults).slice(0, 60)
+    const media = mergeResults(
+      exactKeywordResults(indexes.mediaDocs, query),
+      indexes.media.search(query, { limit: 40 }).map(r => toSearchResult(r, query)),
+    ).sort(compareResults).slice(0, 40)
 
     return { people, sources, media, total: people.length + sources.length + media.length }
   }, [indexes])
@@ -258,6 +303,82 @@ function toSearchResult(r: FuseResult<SearchDocument>, query: string): SearchRes
 
 function compareResults(a: SearchResult, b: SearchResult): number {
   return a.score - b.score || a.item.title.localeCompare(b.item.title)
+}
+
+function mergeResults(primary: SearchResult[], secondary: SearchResult[]): SearchResult[] {
+  const merged = new Map<string, SearchResult>()
+
+  for (const result of [...primary, ...secondary]) {
+    const key = result.item.link
+    const existing = merged.get(key)
+    if (!existing || result.score < existing.score) merged.set(key, result)
+  }
+
+  return Array.from(merged.values())
+}
+
+function exactKeywordResults(documents: SearchDocument[], query: string): SearchResult[] {
+  const normalizedQuery = normalizeForSearch(query)
+  const queryTokens = tokenizeForSearch(query)
+  if (!normalizedQuery || queryTokens.length === 0) return []
+
+  const results: SearchResult[] = []
+
+  for (const document of documents) {
+    let best: SearchResult | null = null
+
+    for (const field of EXACT_SEARCH_FIELDS) {
+      const value = String(document[field] || '')
+      const match = findExactMatch(value, normalizedQuery, queryTokens)
+      if (!match) continue
+
+      const score = (EXACT_FIELD_PRIORITY[field] ?? 0.12) + (queryTokens.length > 1 ? 0 : 0.02)
+      const result: SearchResult = {
+        item: document,
+        score,
+        matches: [{
+          key: field,
+          value,
+          indices: [[match.start, match.end]],
+        }],
+      }
+
+      if (!best || result.score < best.score) best = result
+    }
+
+    if (best) results.push(best)
+  }
+
+  return results
+}
+
+function findExactMatch(value: string, normalizedQuery: string, queryTokens: string[]): { start: number; end: number } | null {
+  if (!value) return null
+
+  const lowerValue = value.toLowerCase()
+  const directIndex = lowerValue.indexOf(normalizedQuery)
+  if (directIndex >= 0) return { start: directIndex, end: directIndex + normalizedQuery.length - 1 }
+
+  const normalizedValue = normalizeForSearch(value)
+  const valueTokens = normalizedValue.split(/\s+/).filter(Boolean)
+  const valueTokenSet = new Set(valueTokens)
+
+  if (queryTokens.length === 1) {
+    const token = queryTokens[0]
+    if (!valueTokenSet.has(token)) return null
+    return approximateOriginalTokenRange(value, token)
+  }
+
+  if (!queryTokens.every(token => valueTokenSet.has(token))) return null
+  return approximateOriginalTokenRange(value, queryTokens[0])
+}
+
+function approximateOriginalTokenRange(value: string, token: string): { start: number; end: number } {
+  const escapedToken = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`\\b${escapedToken}\\b`, 'i')
+  const match = regex.exec(value)
+  if (match?.index != null) return { start: match.index, end: match.index + match[0].length - 1 }
+  return { start: 0, end: Math.max(0, Math.min(value.length, token.length) - 1) }
 }
 
 function boostedScore(item: SearchDocument, fuseScore: number, query: string): number {
