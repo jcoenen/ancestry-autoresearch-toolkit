@@ -9,12 +9,19 @@ interface SourceEntry {
   file: string;
   title: string;
   slug: string;
+  personIds: string[];
+  subjectPersonIds: string[];
   fullText: string;
   extractedFacts: string;
   notes: string;
 }
 
+interface PersonEntry {
+  id: string;
+}
+
 interface SiteData {
+  people: PersonEntry[];
   sources: SourceEntry[];
 }
 
@@ -47,6 +54,7 @@ async function main() {
 
   const siteData = JSON.parse(readFileSync(SITE_DATA, 'utf-8')) as SiteData;
   const sourceById = new Map(siteData.sources.map(source => [source.id, source]));
+  const publishedPersonIds = new Set(siteData.people.map(person => person.id));
   const documents = siteData.sources.map(toSearchDocument);
   const tokenDocumentCounts = buildTokenDocumentCounts(siteData.sources);
 
@@ -66,6 +74,14 @@ async function main() {
     const sourceId = String(fm.source_id);
     const built = sourceById.get(sourceId);
     if (!built) {
+      const linkedIds = [
+        ...(Array.isArray(fm.person_ids) ? fm.person_ids.map(String) : []),
+        ...(Array.isArray(fm.subject_person_ids) ? fm.subject_person_ids.map(String) : []),
+      ];
+      if (linkedIds.length > 0 && !linkedIds.some(id => publishedPersonIds.has(id))) {
+        continue;
+      }
+
       sectionProblems.push(`${sourceId}: source file exists but is missing from built site data (${file})`);
       continue;
     }
