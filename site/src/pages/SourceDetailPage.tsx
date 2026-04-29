@@ -30,12 +30,19 @@ export default function SourceDetailPage() {
 
   const typeBadgeColor: Record<string, string> = {
     obituary: 'bg-blue-100 text-blue-700',
+    cemetery: 'bg-green-100 text-green-700',
     cemetery_memorial: 'bg-green-100 text-green-700',
+    baptism: 'bg-purple-100 text-purple-700',
+    birth_certificate: 'bg-emerald-100 text-emerald-700',
+    death_certificate: 'bg-rose-100 text-rose-700',
+    marriage_certificate: 'bg-violet-100 text-violet-700',
+    church: 'bg-purple-100 text-purple-700',
     church_record: 'bg-purple-100 text-purple-700',
     secondary: 'bg-yellow-100 text-yellow-700',
     ship_manifest: 'bg-cyan-100 text-cyan-700',
     military: 'bg-red-100 text-red-700',
     census: 'bg-indigo-100 text-indigo-700',
+    note: 'bg-orange-100 text-orange-700',
     family_knowledge: 'bg-orange-100 text-orange-700',
   }
 

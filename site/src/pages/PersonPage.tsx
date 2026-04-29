@@ -144,9 +144,16 @@ function isMissingValue(v: string | undefined | null): boolean {
 }
 
 function CompletenessCard({ person, personSources }: { person: Person; personSources: SourceEntry[] }) {
-  const hasSourceType = (types: string[]) => personSources.some(s => types.includes(s.type))
+  const sourceHasType = (s: SourceEntry, types: string[]) =>
+    [s.type, ...(s.recordTypes || [])].some(t => types.includes(t))
+  const hasSourceType = (types: string[]) => personSources.some(s => sourceHasType(s, types))
+  const isPrimaryForPerson = (s: SourceEntry) => {
+    if (s.subjectPersonIds?.length) return s.subjectPersonIds.includes(person.id)
+    if (s.personIds?.length) return s.personIds.includes(person.id)
+    return person.sources.includes(s.id)
+  }
   const hasSourceTypeAsPrimary = (types: string[]) => personSources.some(s =>
-    types.includes(s.type) && s.subjectPersonIds?.includes(person.id)
+    sourceHasType(s, types) && isPrimaryForPerson(s)
   )
   const hasMediaType = (types: string[]) => person.media.some(m => types.includes(m.type))
 

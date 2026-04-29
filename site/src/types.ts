@@ -77,6 +77,7 @@ export interface SourceEntry {
   date: string;
   publisher: string;
   type: string;
+  recordTypes: string[];
   title: string;
   reliability: string;
   fagNumber: string;

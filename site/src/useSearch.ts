@@ -48,6 +48,10 @@ const TYPE_LABELS: Record<string, string> = {
   obituary: 'Obituary',
   cemetery: 'Cemetery',
   cemetery_memorial: 'Cemetery',
+  baptism: 'Baptism',
+  birth_certificate: 'Birth Certificate',
+  death_certificate: 'Death Certificate',
+  marriage_certificate: 'Marriage Certificate',
   church: 'Church Record',
   church_record: 'Church Record',
   secondary: 'Secondary Source',
@@ -57,6 +61,7 @@ const TYPE_LABELS: Record<string, string> = {
   certificate: 'Certificate',
   newspaper: 'Newspaper',
   note: 'Family Knowledge',
+  family_knowledge: 'Family Knowledge',
 }
 
 const MEDIA_TYPE_LABELS: Record<string, string> = {

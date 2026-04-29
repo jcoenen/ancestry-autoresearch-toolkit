@@ -213,11 +213,18 @@ export default function ResearchGapsPage() {
     const sourceMap = new Map<string, SourceEntry>()
     for (const s of sources) sourceMap.set(s.id, s)
 
+    function isPrimaryForPerson(s: SourceEntry, p: Person): boolean {
+      if (s.subjectPersonIds?.length) return s.subjectPersonIds.includes(p.id)
+      if (s.personIds?.length) return s.personIds.includes(p.id)
+      return p.sources.includes(s.id)
+    }
     function hasSourceType(p: Person, types: string[], primaryOnly = false): boolean {
       return p.sources.some(sid => {
         const s = sourceMap.get(sid)
-        return s !== undefined && types.includes(s.type) && (
-          !primaryOnly || s.subjectPersonIds?.includes(p.id)
+        if (!s) return false
+        const sourceTypes = [s.type, ...(s.recordTypes || [])]
+        return s !== undefined && sourceTypes.some(t => types.includes(t)) && (
+          !primaryOnly || isPrimaryForPerson(s, p)
         )
       })
     }

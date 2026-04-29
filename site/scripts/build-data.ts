@@ -102,6 +102,7 @@ interface SourceEntry {
   date: string;
   publisher: string;
   type: string;
+  recordTypes: string[];
   title: string;
   reliability: string;
   fagNumber: string;
@@ -120,6 +121,61 @@ interface SourceEntry {
   media: MediaEntry[];
   created: string;
   _mediaRefs: string[];
+}
+
+function textIncludesAny(text: string, terms: string[]): boolean {
+  return terms.some(term => text.includes(term));
+}
+
+function normalizeSourceType(fm: Record<string, unknown>, file: string, content: string): string {
+  const rawType = String(fm.source_type || '').trim();
+  const title = String(fm.title || '');
+  const publisher = String(fm.publisher || '');
+  const tags = Array.isArray(fm.tags) ? fm.tags.map(String).join(' ') : String(fm.tags || '');
+  const metadata = `${file} ${rawType} ${title} ${publisher} ${tags}`.toLowerCase();
+  const documentTypeText = `${metadata} ${content.slice(0, 500)}`.toLowerCase();
+
+  if (rawType === 'cemetery_memorial') return 'cemetery';
+  if (rawType === 'family_knowledge') return 'note';
+  if (rawType === 'church_record') {
+    if (textIncludesAny(metadata, ['marriage', 'huwelijk', 'trouwen', 'marr_', ' married'])) return 'marriage_certificate';
+    if (textIncludesAny(metadata, ['baptism', 'baptized', 'christening', 'christened', 'doop', 'dåp', 'døpt'])) return 'baptism';
+    if (textIncludesAny(metadata, ['death', 'overlijden', 'burial', 'buried', 'begraaf'])) return 'death_certificate';
+    if (textIncludesAny(metadata, ['birth', 'geboorte', 'born'])) return 'birth_certificate';
+    return 'church';
+  }
+  if (rawType === 'certificate') {
+    if (textIncludesAny(metadata, ['marriage', 'huwelijk', 'huwelijksakte', 'trouwen', ' married'])) return 'marriage_certificate';
+    if (textIncludesAny(metadata, ['death', 'deathcert', 'deathreg', 'overlijden', 'overlijdensakte', 'ssdi'])) return 'death_certificate';
+    if (textIncludesAny(metadata, ['birth', 'geboorte', 'numident'])) return 'birth_certificate';
+    if (textIncludesAny(documentTypeText, ['bs huwelijksakte'])) return 'marriage_certificate';
+    if (textIncludesAny(documentTypeText, ['bs overlijdensakte'])) return 'death_certificate';
+    if (textIncludesAny(documentTypeText, ['bs geboorteakte'])) return 'birth_certificate';
+  }
+
+  return rawType;
+}
+
+function inferSourceRecordTypes(fm: Record<string, unknown>, file: string, content: string): string[] {
+  const primary = normalizeSourceType(fm, file, content);
+  const rawType = String(fm.source_type || '').trim();
+  const title = String(fm.title || '');
+  const publisher = String(fm.publisher || '');
+  const tags = Array.isArray(fm.tags) ? fm.tags.map(String).join(' ') : String(fm.tags || '');
+  const haystack = `${file} ${rawType} ${title} ${publisher} ${tags} ${content}`.toLowerCase();
+  const types = new Set<string>(primary ? [primary] : []);
+
+  if (rawType === 'cemetery_memorial') types.add('cemetery');
+  if (rawType === 'family_knowledge') types.add('note');
+  if (rawType === 'certificate') return [...types];
+  if (rawType === 'church_record') {
+    if (textIncludesAny(haystack, ['baptism', 'baptized', 'christening', 'christened', 'doop', 'dåp', 'døpt'])) types.add('baptism');
+    if (textIncludesAny(haystack, ['birth', 'geboorte', 'birth date', 'birthplace', 'born'])) types.add('birth_certificate');
+    if (textIncludesAny(haystack, ['death', 'death date', 'death place', 'deathcert', 'deathreg', 'overlijden', 'overlijdensakte', 'burial', 'buried'])) types.add('death_certificate');
+    if (textIncludesAny(haystack, ['marriage', 'huwelijk', 'huwelijksakte', 'trouwen', 'married'])) types.add('marriage_certificate');
+  }
+
+  return [...types];
 }
 
 function splitVitalList(val: string | undefined): string[] {
@@ -241,6 +297,8 @@ async function parseSourceFiles(): Promise<SourceEntry[]> {
     const extractedFacts = extractSection(content, 'Extracted Facts');
     const notes = extractSection(content, 'Notes');
 
+    const normalizedType = normalizeSourceType(fm, file, content);
+
     entries.push({
       id: fm.source_id || '',
       file: file,
@@ -249,7 +307,8 @@ async function parseSourceFiles(): Promise<SourceEntry[]> {
       subjectPersonIds: Array.isArray(fm.subject_person_ids) ? fm.subject_person_ids.map(String) : [],
       date: fm.date_of_document ? String(fm.date_of_document) : '',
       publisher: fm.publisher || '',
-      type: fm.source_type || '',
+      type: normalizedType,
+      recordTypes: inferSourceRecordTypes(fm, file, content),
       title: fm.title || '',
       reliability: fm.reliability || '',
       fagNumber: fm.memorial_id ? String(fm.memorial_id) : '',
