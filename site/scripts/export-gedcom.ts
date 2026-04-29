@@ -20,6 +20,8 @@ interface Person {
   birthplace: string;
   deathPlace: string;
   burial: string;
+  burialPlot: string;
+  burialNotes: string;
   father: string;
   mother: string;
   spouses: { id: string; name: string; marriageDate: string }[];
@@ -395,6 +397,8 @@ function main() {
     if (p.burial) {
       lines.push(gedLine(1, 'BURI'));
       lines.push(gedLine(2, 'PLAC', p.burial));
+      if (p.burialPlot) lines.push(...gedNote(2, `Burial plot: ${p.burialPlot}`));
+      if (p.burialNotes) lines.push(...gedNote(2, `Burial notes: ${p.burialNotes}`));
     }
 
     // Cremation

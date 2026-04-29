@@ -283,7 +283,9 @@ The `## Vital Information` table Field column MUST use these exact names. The we
 | `Died` | Death date and place |
 | `Birthplace` | If separate from Born |
 | `Death Place` | If separate from Died |
-| `Burial` | Burial location |
+| `Burial` | Cemetery name/location only; use the Find a Grave cemetery name spelling when known |
+| `Burial Plot` | Section, lot, row, block, grave, plot, or niche details |
+| `Burial Notes` | Burial context that is not part of the cemetery name, such as conflicting secondary references, inferred location, full military rites, or cremation wording |
 | `Gravestone` | Gravestone inscription |
 | `Father` | Father (use wikilink if person file exists) |
 | `Mother` | Mother (use wikilink if person file exists) |

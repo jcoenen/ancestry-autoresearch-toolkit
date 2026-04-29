@@ -38,6 +38,8 @@ export interface Person {
   birthplace: string;
   deathPlace: string;
   burial: string;
+  burialPlot: string;
+  burialNotes: string;
   religion: string;
   occupation: string;
   occupations: OccupationEntry[];

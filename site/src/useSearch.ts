@@ -183,7 +183,7 @@ export function useSearch() {
         searchAliases: '',
         searchFamily: p.family || '',
         searchDates: p.privacy ? '' : [p.born, p.died, formatYear(p.born), formatYear(p.died), p.created].filter(Boolean).join(' '),
-        searchPlaces: p.privacy ? '' : [p.birthplace, p.deathPlace, p.burial, p.residence].filter(Boolean).join(' '),
+        searchPlaces: p.privacy ? '' : [p.birthplace, p.deathPlace, p.burial, p.burialPlot, p.burialNotes, p.residence].filter(Boolean).join(' '),
         searchOccupation: p.privacy ? '' : [p.occupation, occupationText].filter(Boolean).join(' '),
         searchRelations: p.privacy ? '' : [...parentNames, ...spouseNames, ...childNames].join(' '),
         searchLifeEvents: p.privacy ? '' : [

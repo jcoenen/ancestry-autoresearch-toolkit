@@ -693,6 +693,12 @@ export default function PersonPage() {
                 {person.burial && person.burial !== '—' && (
                   <VitalRow label="Burial" value={person.burial} />
                 )}
+                {person.burialPlot && person.burialPlot !== '—' && (
+                  <VitalRow label="Burial Plot" value={person.burialPlot} />
+                )}
+                {person.burialNotes && person.burialNotes !== '—' && (
+                  <VitalRow label="Burial Notes" value={person.burialNotes} />
+                )}
                 {person.religion && person.religion !== '—' && (
                   <VitalRow label="Religion" value={person.religion} />
                 )}

@@ -31,6 +31,8 @@ export const RECOGNIZED_VITAL_FIELDS = [
   'Birthplace',
   'Death Place',
   'Burial',
+  'Burial Plot',
+  'Burial Notes',
   'Gravestone',
   'Father',
   'Mother',

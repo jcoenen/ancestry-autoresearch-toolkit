@@ -61,6 +61,8 @@ interface PersonData {
   birthplace: string;
   deathPlace: string;
   burial: string;
+  burialPlot: string;
+  burialNotes: string;
   religion: string;
   occupation: string;
   occupations: OccupationEntry[];
@@ -536,6 +538,8 @@ async function main() {
       birthplace: isPrivate ? '' : birthplace,
       deathPlace: isPrivate ? '' : deathPlace,
       burial: isPrivate ? '' : (vitals['Burial'] || ''),
+      burialPlot: isPrivate ? '' : (vitals['Burial Plot'] || ''),
+      burialNotes: isPrivate ? '' : (vitals['Burial Notes'] || ''),
       religion: isPrivate ? '' : (vitals['Religion'] || ''),
       occupation: isPrivate ? '' : (vitals['Occupation'] || ''),
       occupations: isPrivate ? [] : normalizeOccupationEntries(fm.occupations),
