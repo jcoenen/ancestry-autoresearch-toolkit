@@ -80,6 +80,49 @@ function shortMigrationSourceTitle(source: SourceEntry): string {
   return year && !title.includes(String(year)) ? `${title} (${year})` : title
 }
 
+function normalizeReligion(value: string): string {
+  const raw = value.trim().toLowerCase()
+  if (raw.includes('catholic') || raw.includes('catholique') || raw.includes('rooms-ka')) return 'Catholic'
+  if (raw.includes('lutheran')) return 'Lutheran'
+  if (raw.includes('methodist')) return 'Methodist'
+  if (raw.includes('baptist')) return 'Baptist'
+  if (raw.includes('reform')) return 'Reformed'
+  return value.trim().replace(/\b\w/g, c => c.toUpperCase())
+}
+
+function normalizeOccupation(value: string): string {
+  const raw = value.toLowerCase()
+  if (raw.includes('farmer') || raw.includes('farm ')) return 'Agriculture / Farming'
+  if (raw.includes('military') || raw.includes('army') || raw.includes('wwii') || raw.includes('revolutionary war') || raw.includes('captain')) return 'Military'
+  if (raw.includes('teacher') || raw.includes('school') || raw.includes('education')) return 'Education'
+  if (raw.includes('church') || raw.includes('sister') || raw.includes('parish')) return 'Religious service'
+  if (raw.includes('factory') || raw.includes('wire works') || raw.includes('construction') || raw.includes('service') || raw.includes('elevator')) return 'Trades / Manufacturing'
+  if (raw.includes('oil') || raw.includes('manager') || raw.includes('owner') || raw.includes('restaurant') || raw.includes('agent')) return 'Business / Management'
+  if (raw.includes('driver') || raw.includes('route')) return 'Transportation'
+  if (raw.includes('social services') || raw.includes('administrative')) return 'Office / Public service'
+  return 'Other specific occupations'
+}
+
+function normalizeBirthplace(value: string): string {
+  const raw = value.trim()
+  const lower = raw.toLowerCase()
+  if (lower.includes('wisconsin') || /\bwi\b/i.test(raw)) return 'Wisconsin, USA'
+  if (lower.includes('kentucky') || /\bky\b/i.test(raw)) return 'Kentucky, USA'
+  if (lower.includes('virginia')) return 'Virginia, USA'
+  if (lower.includes('michigan')) return 'Michigan, USA'
+  if (lower.includes('pennsylvania')) return 'Pennsylvania, USA'
+  if (lower.includes('north carolina')) return 'North Carolina, USA'
+  if (lower.includes('south carolina')) return 'South Carolina, USA'
+  if (lower.includes('tennessee')) return 'Tennessee, USA'
+  if (lower.includes('quebec') || lower.includes('québec') || lower.includes('canada')) return 'Quebec / Canada'
+  if (lower.includes('bohemia') || lower.includes('czech')) return 'Bohemia / Czech lands'
+  if (lower.includes('germany') || lower.includes('prussia') || lower.includes('pommern') || lower.includes('pomerania')) return 'Germany / Prussia'
+  if (lower.includes('france') || lower.includes('normandie') || lower.includes('rouen')) return 'France'
+  if (lower.includes('ireland')) return 'Ireland'
+  if (lower.includes('netherlands') || lower.includes('holland')) return 'Netherlands'
+  return raw.replace(/\s+\((likely|probable|uncertain)[^)]+\)/gi, '')
+}
+
 /* ── Bar chart component ─────────────────────────────────────── */
 
 type BarItem = {
@@ -242,8 +285,8 @@ export default function StatsPage() {
     // --- Occupations ---
     const occCounts = new Map<string, number>()
     for (const p of pub) {
-      if (p.occupation && p.occupation !== '—') {
-        const occ = p.occupation.trim()
+      if (hasKnownValue(p.occupation)) {
+        const occ = normalizeOccupation(p.occupation)
         occCounts.set(occ, (occCounts.get(occ) || 0) + 1)
       }
     }
@@ -255,7 +298,7 @@ export default function StatsPage() {
     const placeCounts = new Map<string, number>()
     for (const p of pub) {
       const raw = p.birthplace?.trim()
-      const place = (!raw || raw === '—') ? 'Unknown' : raw
+      const place = hasKnownValue(raw) ? normalizeBirthplace(raw) : 'Unknown'
       placeCounts.set(place, (placeCounts.get(place) || 0) + 1)
     }
     const topPlaces = [...placeCounts.entries()]
@@ -363,19 +406,8 @@ export default function StatsPage() {
     // --- Religion (normalize variants) ---
     const relCounts = new Map<string, number>()
     for (const p of pub) {
-      if (p.religion && p.religion !== '—') {
-        const raw = p.religion.trim().toLowerCase()
-        let normalized: string
-        if (raw.includes('catholic') || raw.includes('rooms-ka')) {
-          normalized = 'Catholic'
-        } else if (raw.includes('lutheran')) {
-          normalized = 'Lutheran'
-        } else if (raw.includes('methodist')) {
-          normalized = 'Methodist'
-        } else {
-          // Title-case the original
-          normalized = p.religion.trim().replace(/\b\w/g, c => c.toUpperCase())
-        }
+      if (hasKnownValue(p.religion)) {
+        const normalized = normalizeReligion(p.religion)
         relCounts.set(normalized, (relCounts.get(normalized) || 0) + 1)
       }
     }
