@@ -70,8 +70,9 @@ export function parseVitalTable(content: string): Record<string, string> {
     }
     if (inVitalSection && line.startsWith('|') && !line.startsWith('|---') && !line.startsWith('| Field')) {
       // Replace \| (escaped pipes inside wikilinks) with a placeholder before splitting
-      const safe = line.replace(/\\\|/g, '\x00');
-      const parts = safe.split('|').map(p => p.replace(/\x00/g, '|').trim()).filter(Boolean);
+      const pipePlaceholder = '__ESCAPED_PIPE__';
+      const safe = line.replace(/\\\|/g, pipePlaceholder);
+      const parts = safe.split('|').map(p => p.replaceAll(pipePlaceholder, '|').trim()).filter(Boolean);
       if (parts.length >= 2) {
         table[parts[0]] = parts[1];
       }
@@ -213,7 +214,7 @@ export function extractSection(content: string, heading: string): string {
 }
 
 export function extractFullText(content: string): string {
-  // Get the blockquoted text (lines starting with >)
+  // Prefer blockquoted transcription text when present.
   const lines = content.split('\n');
   const quoted: string[] = [];
   let inFullText = false;
@@ -225,6 +226,12 @@ export function extractFullText(content: string): string {
     }
   }
   if (quoted.length > 0) return quoted.join('\n');
+
+  // Some source files store plain text, tables, or field lists directly under
+  // the Full Text heading. Index that content too so keyword search can find it.
+  const rawFullText = extractSection(content, 'Full Text');
+  if (rawFullText) return rawFullText;
+
   // Fallback: look for any blockquote in the content
   const allQuoted: string[] = [];
   for (const line of lines) {
@@ -234,12 +241,6 @@ export function extractFullText(content: string): string {
 }
 
 // ── Privacy redaction ──
-
-/** Fields that are always visible for private people (structural/identity) */
-const PRIVACY_VISIBLE_FIELDS = new Set([
-  'id', 'name', 'gender', 'family', 'privacy', 'confidence', 'slug', 'filePath',
-  'father', 'fatherName', 'mother', 'motherName', 'spouses', 'children',
-]);
 
 /** Fields blanked to '' for private people */
 const PRIVACY_STRING_FIELDS = [
