@@ -21,6 +21,11 @@ export default function FamilyDirectory() {
   const [searchParams] = useSearchParams()
   const initialFamily = searchParams.get('family') || ''
   const initialSearch = searchParams.get('search') || ''
+  const sourceFilter = searchParams.get('source') || ''
+  const militaryFilter = searchParams.get('military') || ''
+  const occupationFilter = searchParams.get('occupation') || ''
+  const religionFilter = searchParams.get('religion') || ''
+  const immigrationFilter = searchParams.get('immigration') || ''
   const [search, setSearch] = useState(initialSearch)
   const [familyFilter, setFamilyFilter] = useState<Set<string>>(
     initialFamily ? new Set([initialFamily]) : new Set()
@@ -50,6 +55,26 @@ export default function FamilyDirectory() {
       result = result.filter(p => confidenceFilter.has(p.confidence))
     }
 
+    if (sourceFilter) {
+      result = result.filter(p => p.sources.includes(sourceFilter))
+    }
+
+    if (militaryFilter) {
+      result = result.filter(p => p.military === militaryFilter)
+    }
+
+    if (occupationFilter) {
+      result = result.filter(p => p.occupation === occupationFilter)
+    }
+
+    if (religionFilter) {
+      result = result.filter(p => p.religion === religionFilter)
+    }
+
+    if (immigrationFilter) {
+      result = result.filter(p => p.immigration === immigrationFilter || p.emigration === immigrationFilter || p.naturalization === immigrationFilter)
+    }
+
     const from = yearFrom ? parseInt(yearFrom, 10) : null
     const to = yearTo ? parseInt(yearTo, 10) : null
     if (from !== null || to !== null) {
@@ -67,12 +92,21 @@ export default function FamilyDirectory() {
       result = result.filter(p =>
         p.name.toLowerCase().includes(q) ||
         p.birthplace.toLowerCase().includes(q) ||
+        p.deathPlace.toLowerCase().includes(q) ||
+        p.burial.toLowerCase().includes(q) ||
+        p.residence.toLowerCase().includes(q) ||
+        p.occupation.toLowerCase().includes(q) ||
+        p.military.toLowerCase().includes(q) ||
+        p.religion.toLowerCase().includes(q) ||
+        p.immigration.toLowerCase().includes(q) ||
+        p.emigration.toLowerCase().includes(q) ||
+        p.naturalization.toLowerCase().includes(q) ||
         p.family.toLowerCase().includes(q)
       )
     }
 
     return result
-  }, [people, search, familyFilter, confidenceFilter, yearFrom, yearTo])
+  }, [people, search, familyFilter, confidenceFilter, yearFrom, yearTo, sourceFilter, militaryFilter, occupationFilter, religionFilter, immigrationFilter])
 
   const grouped = useMemo(() => {
     const groups: Record<string, typeof filtered> = {}
@@ -102,7 +136,7 @@ export default function FamilyDirectory() {
     })
   }
 
-  const hasAdvancedFilters = confidenceFilter.size > 0 || yearFrom || yearTo
+  const hasAdvancedFilters = confidenceFilter.size > 0 || yearFrom || yearTo || sourceFilter || militaryFilter || occupationFilter || religionFilter || immigrationFilter
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">

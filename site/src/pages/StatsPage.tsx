@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { usePeople, useData, extractYear, confidenceColor } from '../useData'
-import type { Person } from '../types'
+import type { Person, SourceEntry } from '../types'
 
 /* ── Helpers ──────────────────────────────────────────────────── */
 
@@ -33,15 +33,33 @@ function hasKnownValue(value: string | undefined | null): boolean {
   return v !== '' && v !== '—' && v !== '-' && v.toLowerCase() !== 'unknown'
 }
 
+function shortMigrationSourceTitle(source: SourceEntry): string {
+  const year = extractYear(source.date)
+  const title = source.title || source.id
+  const ship = title.match(/Ship Manifest\s+[—-]\s+(.+?)(?:,\s*.+)?$/i)
+  if (ship) return `${ship[1]} passenger manifest${year ? ` (${year})` : ''}`
+  const naturalization = title.match(/Naturalization Record\s+[—-]\s+(.+?)(?:,\s*.+)?$/i)
+  if (naturalization) return `${naturalization[1]} naturalization${year ? ` (${year})` : ''}`
+  return year && !title.includes(String(year)) ? `${title} (${year})` : title
+}
+
 /* ── Bar chart component ─────────────────────────────────────── */
 
-function BarChart({ items, max: maxOverride }: { items: { label: string; value: number; link?: string }[]; max?: number }) {
+type BarItem = {
+  label: string
+  value: number
+  link?: string
+  countLink?: string
+  title?: string
+}
+
+function BarChart({ items, max: maxOverride }: { items: BarItem[]; max?: number }) {
   const max = maxOverride ?? Math.max(...items.map(i => i.value), 1)
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {items.map(item => (
         <div key={item.label} className="flex items-center gap-3">
-          <div className="w-40 sm:w-56 text-sm text-stone-600 text-right truncate shrink-0">
+          <div className="w-44 sm:w-72 text-sm text-stone-600 text-right leading-snug shrink-0" title={item.title || item.label}>
             {item.link ? (
               <Link to={item.link} className="hover:text-amber-700">{item.label}</Link>
             ) : item.label}
@@ -52,7 +70,11 @@ function BarChart({ items, max: maxOverride }: { items: { label: string; value: 
               style={{ width: `${Math.max((item.value / max) * 100, 2)}%` }}
             />
           </div>
-          <div className="w-10 text-sm text-stone-500 text-right tabular-nums">{item.value}</div>
+          <div className="w-10 text-sm text-stone-500 text-right tabular-nums">
+            {item.countLink ? (
+              <Link to={item.countLink} className="hover:text-amber-700">{item.value}</Link>
+            ) : item.value}
+          </div>
         </div>
       ))}
     </div>
@@ -222,27 +244,62 @@ export default function StatsPage() {
 
     // --- Immigration ---
     const sourceMap = new Map(sources.map(s => [s.id, s]))
-    const immCounts = new Map<string, number>()
+    const immCounts = new Map<string, BarItem>()
     for (const p of pub) {
-      let imm = ''
-      if (hasKnownValue(p.immigration)) imm = p.immigration.trim()
-      else if (hasKnownValue(p.emigration)) imm = `Emigration: ${p.emigration.trim()}`
-      else if (hasKnownValue(p.naturalization)) imm = `Naturalization: ${p.naturalization.trim()}`
+      let key = ''
+      let item: BarItem | null = null
+
+      if (hasKnownValue(p.immigration)) {
+        key = `person:${p.id}:immigration`
+        item = {
+          label: `${p.name}: ${p.immigration.trim()}`,
+          value: 0,
+          link: `/people/${p.slug}`,
+          title: `Immigration field from ${p.name}`,
+        }
+      } else if (hasKnownValue(p.emigration)) {
+        key = `person:${p.id}:emigration`
+        item = {
+          label: `${p.name}: emigration ${p.emigration.trim()}`,
+          value: 0,
+          link: `/people/${p.slug}`,
+          title: `Emigration field from ${p.name}`,
+        }
+      } else if (hasKnownValue(p.naturalization)) {
+        key = `person:${p.id}:naturalization`
+        item = {
+          label: `${p.name}: naturalization ${p.naturalization.trim()}`,
+          value: 0,
+          link: `/people/${p.slug}`,
+          title: `Naturalization field from ${p.name}`,
+        }
+      }
       else {
         const migrationSource = p.sources
           .map(id => sourceMap.get(id))
           .find(s => s && ['immigration', 'ship_manifest', 'naturalization'].includes(s.type))
-        if (migrationSource) imm = migrationSource.title || migrationSource.id
+        if (migrationSource) {
+          key = `source:${migrationSource.id}`
+          item = {
+            label: shortMigrationSourceTitle(migrationSource),
+            value: 0,
+            link: `/sources/${migrationSource.slug}`,
+            countLink: `/people?source=${encodeURIComponent(migrationSource.id)}`,
+            title: migrationSource.title || migrationSource.id,
+          }
+        }
       }
 
-      if (imm) {
-        immCounts.set(imm, (immCounts.get(imm) || 0) + 1)
+      if (key && item) {
+        const existing = immCounts.get(key) || item
+        existing.value++
+        immCounts.set(key, existing)
       }
     }
-    const topImmigration = [...immCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
+    const topImmigration = [...immCounts.values()]
+      .sort((a, b) => b.value - a.value)
       .slice(0, 12)
-    const totalImmigrants = [...immCounts.values()].reduce((s, n) => s + n, 0)
+    const totalImmigrants = [...immCounts.values()].reduce((s, item) => s + item.value, 0)
 
     // --- Military ---
     const milCounts = new Map<string, number>()
@@ -395,14 +452,14 @@ export default function StatsPage() {
       {/* Immigration */}
       {stats.topImmigration.length > 0 && (
         <Section title={`Immigration (${stats.totalImmigrants} people)`}>
-          <BarChart items={stats.topImmigration.map(([imm, count]) => ({ label: imm, value: count, link: `/people?search=${encodeURIComponent(imm)}` }))} />
+          <BarChart items={stats.topImmigration} />
         </Section>
       )}
 
       {/* Military */}
       {stats.topMilitary.length > 0 && (
         <Section title={`Military Service (${stats.totalMilitary} people)`}>
-          <BarChart items={stats.topMilitary.map(([mil, count]) => ({ label: mil, value: count, link: `/people?search=${encodeURIComponent(mil)}` }))} />
+          <BarChart items={stats.topMilitary.map(([mil, count]) => ({ label: mil, value: count, link: `/people?military=${encodeURIComponent(mil)}` }))} />
         </Section>
       )}
 
