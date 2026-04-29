@@ -26,7 +26,7 @@ One toolkit, multiple family projects. Each family gets its own repo with this t
 - **Timeline** — chronological events across all people
 - **On This Day** — daily family history highlights (births, deaths, marriages, immigration, military, baptisms, and more)
 - **Statistics** — people count, source count, generations traced, family lines
-- **Global search** — fuzzy full-text search across people and sources (name, biography, birthplace, occupation, source text, notes) with highlighted snippets. Cmd+K shortcut
+- **Global search** — fuzzy full-text search across people, sources, and media with weighted matches for names, IDs, relationships, places, dates, source text, notes, and genealogy surname variants. Includes Cmd+K, autocomplete suggestions, result tabs, exact-match boosting, and highlighted snippets
 - **Research gaps** — auto-detected stubs, missing sources, broken links, untranslated sources. Per-category research suggestions ("Where to look"). Priority targets ranked by gap count. Export/Copy research plan as markdown checklist
 - **Immigration stories** — narrative page rendered from vault markdown
 - **Family filter** — dropdown to filter any view by surname

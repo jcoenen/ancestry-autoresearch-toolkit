@@ -1,13 +1,25 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useSearch, getSnippet, type SearchResult } from '../useSearch'
+
+type ActiveTab = 'all' | 'people' | 'sources' | 'media'
 
 export default function SearchPage() {
   const [searchParams] = useSearchParams()
   const query = searchParams.get('q') || ''
+  const [activeTab, setActiveTab] = useState<ActiveTab>('all')
   const { search } = useSearch()
 
   const results = useMemo(() => search(query), [search, query])
+  const tabs: { id: ActiveTab; label: string; count: number }[] = [
+    { id: 'all', label: 'All', count: results.total },
+    { id: 'people', label: 'People', count: results.people.length },
+    { id: 'sources', label: 'Sources', count: results.sources.length },
+    { id: 'media', label: 'Media', count: results.media.length },
+  ]
+  const showPeople = activeTab === 'all' || activeTab === 'people'
+  const showSources = activeTab === 'all' || activeTab === 'sources'
+  const showMedia = activeTab === 'all' || activeTab === 'media'
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
@@ -15,7 +27,7 @@ export default function SearchPage() {
 
       {!query ? (
         <p className="mt-6 text-stone-400 text-center py-12">
-          Enter a search term to find people and sources.
+          Enter a search term to find people, sources, and media.
         </p>
       ) : results.total === 0 ? (
         <p className="mt-6 text-stone-400 text-center py-12">
@@ -27,7 +39,24 @@ export default function SearchPage() {
             {results.total} result{results.total !== 1 ? 's' : ''} for &ldquo;{query}&rdquo;
           </p>
 
-          {results.people.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mb-8">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-stone-800 text-white border-stone-800'
+                    : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+                }`}
+              >
+                {tab.label} ({tab.count})
+              </button>
+            ))}
+          </div>
+
+          {showPeople && results.people.length > 0 && (
             <section className="mb-8">
               <h2 className="text-xl font-semibold text-stone-800 mb-3 flex items-baseline gap-2">
                 People
@@ -43,7 +72,7 @@ export default function SearchPage() {
             </section>
           )}
 
-          {results.sources.length > 0 && (
+          {showSources && results.sources.length > 0 && (
             <section className="mb-8">
               <h2 className="text-xl font-semibold text-stone-800 mb-3 flex items-baseline gap-2">
                 Sources
@@ -53,6 +82,22 @@ export default function SearchPage() {
               </h2>
               <div className="space-y-2">
                 {results.sources.map((r, i) => (
+                  <ResultCard key={i} result={r} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {showMedia && results.media.length > 0 && (
+            <section className="mb-8">
+              <h2 className="text-xl font-semibold text-stone-800 mb-3 flex items-baseline gap-2">
+                Media
+                <span className="text-sm font-normal text-stone-400">
+                  ({results.media.length})
+                </span>
+              </h2>
+              <div className="space-y-2">
+                {results.media.map((r, i) => (
                   <ResultCard key={i} result={r} />
                 ))}
               </div>
@@ -90,9 +135,11 @@ function ResultCard({ result }: { result: SearchResult }) {
         <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0 ${
           result.item.type === 'person'
             ? 'bg-blue-50 text-blue-600'
-            : 'bg-amber-50 text-amber-600'
+            : result.item.type === 'source'
+              ? 'bg-amber-50 text-amber-600'
+              : 'bg-emerald-50 text-emerald-600'
         }`}>
-          {result.item.type === 'person' ? 'Person' : 'Source'}
+          {result.item.type === 'person' ? 'Person' : result.item.type === 'source' ? 'Source' : 'Media'}
         </span>
       </div>
       {snippet && (

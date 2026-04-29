@@ -1,8 +1,8 @@
-import { useMemo } from 'react'
-import Fuse, { type FuseResultMatch } from 'fuse.js'
+import { useCallback, useMemo } from 'react'
+import Fuse, { type FuseResult, type FuseResultMatch } from 'fuse.js'
 import { useData, formatYear } from './useData'
 
-export type SearchResultType = 'person' | 'source'
+export type SearchResultType = 'person' | 'source' | 'media'
 
 export interface SearchDocument {
   type: SearchResultType
@@ -10,17 +10,25 @@ export interface SearchDocument {
   subtitle: string
   link: string
   marriedName?: string[]
+  mediaPath?: string
   // Indexed fields
+  searchId: string
   searchName: string
+  searchAliases: string
   searchFamily: string
-  searchBirthplace: string
+  searchDates: string
+  searchPlaces: string
   searchOccupation: string
+  searchRelations: string
+  searchLifeEvents: string
   searchBiography: string
   searchFullText: string
   searchRecord: string
   searchPublisher: string
   searchNotes: string
   searchExtractedFacts: string
+  searchSources: string
+  searchMedia: string
 }
 
 export interface SearchResult {
@@ -32,26 +40,87 @@ export interface SearchResult {
 export interface GroupedSearchResults {
   people: SearchResult[]
   sources: SearchResult[]
+  media: SearchResult[]
   total: number
 }
 
 const TYPE_LABELS: Record<string, string> = {
   obituary: 'Obituary',
   cemetery: 'Cemetery',
+  cemetery_memorial: 'Cemetery',
   church: 'Church Record',
+  church_record: 'Church Record',
   secondary: 'Secondary Source',
   immigration: 'Immigration',
   military: 'Military',
   census: 'Census',
+  certificate: 'Certificate',
+  newspaper: 'Newspaper',
   note: 'Family Knowledge',
 }
 
-export function useSearch() {
-  const { people, sources } = useData()
+const MEDIA_TYPE_LABELS: Record<string, string> = {
+  gravestone: 'Gravestone',
+  portrait: 'Portrait',
+  newspaper: 'Newspaper',
+  document: 'Document',
+  group_photo: 'Group Photo',
+  scan: 'Scan',
+  other: 'Media',
+}
 
-  const fuse = useMemo(() => {
-    const documents: SearchDocument[] = [
-      ...people.map(p => ({
+const VARIANT_GROUPS = [
+  ['castonia', 'castonguay', 'costonguay', 'gastonguay'],
+  ['lemere', 'lemieux', 'lamere', 'le mere'],
+  ['baehman', 'baehnmann', 'behnman', 'behnmann'],
+  ['stolzman', 'stoltzman', 'stolzmann'],
+  ['bohman', 'bohmann', 'bowman'],
+  ['conley', 'connelly', 'connely'],
+]
+
+const SEARCH_KEYS = [
+  { name: 'searchId', weight: 3.0 },
+  { name: 'searchName', weight: 2.8 },
+  { name: 'searchAliases', weight: 2.4 },
+  { name: 'searchFamily', weight: 2.0 },
+  { name: 'searchRelations', weight: 1.6 },
+  { name: 'searchDates', weight: 1.2 },
+  { name: 'searchPlaces', weight: 1.2 },
+  { name: 'searchOccupation', weight: 1.0 },
+  { name: 'searchLifeEvents', weight: 1.0 },
+  { name: 'searchRecord', weight: 1.0 },
+  { name: 'searchPublisher', weight: 0.8 },
+  { name: 'searchSources', weight: 0.8 },
+  { name: 'searchMedia', weight: 0.8 },
+  { name: 'searchExtractedFacts', weight: 0.7 },
+  { name: 'searchFullText', weight: 0.6 },
+  { name: 'searchBiography', weight: 0.6 },
+  { name: 'searchNotes', weight: 0.5 },
+]
+
+export function useSearch() {
+  const { people, sources, media } = useData()
+
+  const indexes = useMemo(() => {
+    const personById = new Map(people.map(p => [p.id, p]))
+    const sourceByMediaPath = new Map<string, string>()
+
+    for (const source of sources) {
+      for (const mediaEntry of source.media || []) {
+        sourceByMediaPath.set(mediaEntry.path, `/sources/${source.slug}`)
+      }
+    }
+
+    const peopleDocs: SearchDocument[] = people.map(p => {
+      const spouseNames = (p.spouses || []).map(sp => sp.name).filter(Boolean)
+      const childNames = (p.children || []).map(child => child.name).filter(Boolean)
+      const parentNames = [p.fatherName, p.motherName].filter(Boolean)
+      const sourceIds = (p.sources || []).join(' ')
+      const mediaText = (p.media || [])
+        .map(m => [m.path, m.person, m.description, MEDIA_TYPE_LABELS[m.type] || m.type].filter(Boolean).join(' '))
+        .join(' ')
+
+      return withSearchAliases({
         type: 'person' as const,
         title: p.name,
         subtitle: p.privacy
@@ -63,93 +132,212 @@ export function useSearch() {
             ].filter(Boolean).join(' \u00b7 '),
         link: `/people/${p.slug}`,
         marriedName: p.marriedName && p.marriedName.length > 0 ? p.marriedName : undefined,
+        searchId: [p.id, p.familySearchId, p.slug, p.filePath, sourceIds].filter(Boolean).join(' '),
         searchName: [p.name, p.nickname, ...(p.marriedName || []), ...(p.alsoKnownAs || [])].filter(Boolean).join(' '),
+        searchAliases: '',
         searchFamily: p.family || '',
-        searchBirthplace: p.privacy ? '' : (p.birthplace || ''),
+        searchDates: p.privacy ? '' : [p.born, p.died, formatYear(p.born), formatYear(p.died), p.created].filter(Boolean).join(' '),
+        searchPlaces: p.privacy ? '' : [p.birthplace, p.deathPlace, p.burial, p.residence].filter(Boolean).join(' '),
         searchOccupation: p.privacy ? '' : (p.occupation || ''),
+        searchRelations: p.privacy ? '' : [...parentNames, ...spouseNames, ...childNames].join(' '),
+        searchLifeEvents: p.privacy ? '' : [
+          p.religion,
+          p.military,
+          p.immigration,
+          p.emigration,
+          p.naturalization,
+          p.causeOfDeath,
+          p.confirmation,
+          p.baptized,
+          p.christened,
+          p.education,
+          p.divorce,
+          p.cremation,
+        ].filter(Boolean).join(' '),
         searchBiography: p.privacy ? '' : (p.biography || ''),
         searchFullText: '',
         searchRecord: '',
         searchPublisher: '',
         searchNotes: '',
         searchExtractedFacts: '',
-      })),
-      ...sources.map(s => ({
+        searchSources: p.privacy ? '' : sourceIds,
+        searchMedia: p.privacy ? '' : mediaText,
+      })
+    })
+
+    const sourceDocs: SearchDocument[] = sources.map(s => withSearchAliases({
         type: 'source' as const,
         title: s.title || s.record || s.id,
         subtitle: [TYPE_LABELS[s.type] || s.type, s.date, s.publisher].filter(Boolean).join(' \u00b7 '),
         link: `/sources/${s.slug}`,
+        searchId: [s.id, s.fagNumber, s.slug, s.file, s.url, ...(s.personIds || []), ...(s.subjectPersonIds || [])].filter(Boolean).join(' '),
         searchName: [s.person, ...(s.persons || [])].filter(Boolean).join(' '),
-        searchFamily: '',
-        searchBirthplace: '',
+        searchAliases: '',
+        searchFamily: (s.families || []).join(' '),
+        searchDates: [s.date, s.year, s.created].filter(Boolean).join(' '),
+        searchPlaces: '',
         searchOccupation: '',
+        searchRelations: (s.personIds || [])
+          .map(id => personById.get(id)?.name || id)
+          .filter(Boolean)
+          .join(' '),
+        searchLifeEvents: [s.type, TYPE_LABELS[s.type], s.reliability, s.language].filter(Boolean).join(' '),
         searchBiography: '',
         searchFullText: s.fullText || '',
         searchRecord: s.record || '',
         searchPublisher: s.publisher || '',
         searchNotes: s.notes || '',
         searchExtractedFacts: s.extractedFacts || '',
-      })),
-    ]
+        searchSources: [s.id, ...(s.media || []).map(m => m.path)].filter(Boolean).join(' '),
+        searchMedia: (s.media || []).map(m => [m.path, m.description, m.person, MEDIA_TYPE_LABELS[m.type] || m.type].filter(Boolean).join(' ')).join(' '),
+      }))
 
-    return new Fuse(documents, {
-      keys: [
-        { name: 'searchName', weight: 2.0 },
-        { name: 'searchFamily', weight: 1.5 },
-        { name: 'searchBirthplace', weight: 1.0 },
-        { name: 'searchOccupation', weight: 0.8 },
-        { name: 'searchRecord', weight: 1.0 },
-        { name: 'searchPublisher', weight: 0.8 },
-        { name: 'searchExtractedFacts', weight: 0.7 },
-        { name: 'searchFullText', weight: 0.6 },
-        { name: 'searchBiography', weight: 0.6 },
-        { name: 'searchNotes', weight: 0.5 },
-      ],
+    const mediaDocs: SearchDocument[] = media.map(m => withSearchAliases({
+        type: 'media' as const,
+        title: m.person || m.description || m.path,
+        subtitle: [MEDIA_TYPE_LABELS[m.type] || m.type, m.description].filter(Boolean).join(' \u00b7 '),
+        link: sourceByMediaPath.get(m.path) || `/gallery?search=${encodeURIComponent(m.person || m.description || m.path)}`,
+        mediaPath: m.path,
+        searchId: [m.path, m.sourceUrl, m.dateDownloaded].filter(Boolean).join(' '),
+        searchName: m.person || '',
+        searchAliases: '',
+        searchFamily: '',
+        searchDates: m.dateDownloaded || '',
+        searchPlaces: '',
+        searchOccupation: '',
+        searchRelations: '',
+        searchLifeEvents: MEDIA_TYPE_LABELS[m.type] || m.type || '',
+        searchBiography: '',
+        searchFullText: '',
+        searchRecord: m.description || '',
+        searchPublisher: '',
+        searchNotes: '',
+        searchExtractedFacts: '',
+        searchSources: m.sourceUrl || '',
+        searchMedia: [m.path, m.description, m.person, MEDIA_TYPE_LABELS[m.type] || m.type].filter(Boolean).join(' '),
+      }))
+
+    const fuseOptions = {
+      keys: SEARCH_KEYS,
       threshold: 0.35,
       includeMatches: true,
       includeScore: true,
       minMatchCharLength: 2,
       ignoreLocation: true,
-    })
-  }, [people, sources])
+    }
 
-  function search(query: string): GroupedSearchResults {
-    if (!query || query.length < 2) return { people: [], sources: [], total: 0 }
+    return {
+      people: new Fuse(peopleDocs, fuseOptions),
+      sources: new Fuse(sourceDocs, fuseOptions),
+      media: new Fuse(mediaDocs, fuseOptions),
+    }
+  }, [people, sources, media])
 
-    const raw = fuse.search(query, { limit: 100 })
-    const results: SearchResult[] = raw.map(r => ({
-      item: r.item,
-      score: r.score ?? 1,
-      matches: r.matches ?? [],
-    }))
+  const search = useCallback((query: string): GroupedSearchResults => {
+    if (!query || query.length < 2) return { people: [], sources: [], media: [], total: 0 }
 
-    const people = results.filter(r => r.item.type === 'person')
-    const sources = results.filter(r => r.item.type === 'source')
+    const people = indexes.people.search(query, { limit: 60 }).map(r => toSearchResult(r, query)).sort(compareResults)
+    const sources = indexes.sources.search(query, { limit: 60 }).map(r => toSearchResult(r, query)).sort(compareResults)
+    const media = indexes.media.search(query, { limit: 40 }).map(r => toSearchResult(r, query)).sort(compareResults)
 
-    return { people, sources, total: people.length + sources.length }
-  }
+    return { people, sources, media, total: people.length + sources.length + media.length }
+  }, [indexes])
 
   return { search }
 }
 
+function toSearchResult(r: FuseResult<SearchDocument>, query: string): SearchResult {
+  return {
+    item: r.item,
+    score: boostedScore(r.item, r.score ?? 1, query),
+    matches: r.matches ?? [],
+  }
+}
+
+function compareResults(a: SearchResult, b: SearchResult): number {
+  return a.score - b.score || a.item.title.localeCompare(b.item.title)
+}
+
+function boostedScore(item: SearchDocument, fuseScore: number, query: string): number {
+  const q = normalizeForSearch(query)
+  const title = normalizeForSearch(item.title)
+  const name = normalizeForSearch(item.searchName)
+  const id = normalizeForSearch(item.searchId)
+
+  let score = fuseScore
+
+  if (title === q || name === q || id.split(/\s+/).includes(q)) score -= 0.45
+  else if (title.startsWith(q) || name.startsWith(q)) score -= 0.3
+  else if (title.includes(q) || name.includes(q)) score -= 0.18
+  else if (id.includes(q)) score -= 0.12
+
+  if (item.type === 'person') score -= 0.02
+
+  return Math.max(0, score)
+}
+
+function withSearchAliases<T extends SearchDocument>(document: T): T {
+  const aliasSource = [
+    document.searchName,
+    document.searchFamily,
+    document.searchRelations,
+    document.searchPlaces,
+    document.searchRecord,
+  ].join(' ')
+
+  return {
+    ...document,
+    searchAliases: [document.searchAliases, expandGenealogyVariants(aliasSource)].filter(Boolean).join(' '),
+  }
+}
+
+function expandGenealogyVariants(value: string): string {
+  const normalized = normalizeForSearch(value)
+  const variants = new Set<string>()
+
+  for (const group of VARIANT_GROUPS) {
+    if (group.some(term => normalized.includes(term))) {
+      for (const term of group) variants.add(term)
+    }
+  }
+
+  return Array.from(variants).join(' ')
+}
+
+function normalizeForSearch(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
 const FIELD_LABELS: Record<string, string> = {
+  searchId: 'ID',
   searchName: 'Name',
+  searchAliases: 'Name Variant',
   searchFamily: 'Family',
-  searchBirthplace: 'Birthplace',
+  searchDates: 'Dates',
+  searchPlaces: 'Place',
   searchOccupation: 'Occupation',
+  searchRelations: 'Family',
+  searchLifeEvents: 'Life Events',
   searchBiography: 'Biography',
   searchFullText: 'Full Text',
   searchRecord: 'Record',
   searchPublisher: 'Publisher',
   searchNotes: 'Notes',
   searchExtractedFacts: 'Extracted Facts',
+  searchSources: 'Source',
+  searchMedia: 'Media',
 }
 
 export function getSnippet(matches: readonly FuseResultMatch[]): { field: string; before: string; match: string; after: string } | null {
   if (!matches.length) return null
 
   // Prefer matches in content-heavy fields for better snippets
-  const preferred = ['searchBiography', 'searchFullText', 'searchExtractedFacts', 'searchNotes', 'searchRecord']
+  const preferred = ['searchName', 'searchRelations', 'searchPlaces', 'searchBiography', 'searchFullText', 'searchExtractedFacts', 'searchNotes', 'searchRecord', 'searchMedia']
   const sorted = [...matches].sort((a, b) => {
     const aIdx = preferred.indexOf(a.key || '')
     const bIdx = preferred.indexOf(b.key || '')

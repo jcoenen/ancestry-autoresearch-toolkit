@@ -111,6 +111,7 @@ interface SourceEntry {
   fullText: string;
   url: string;
   persons: string[];
+  families: string[];
   extractedFacts: string;
   notes: string;
   translationSlug: string;
@@ -258,6 +259,7 @@ async function parseSourceFiles(): Promise<SourceEntry[]> {
       fullText,
       url: fm.url || '',
       persons: fm.persons || [],
+      families: Array.isArray(fm.families) ? fm.families.map(String) : [],
       extractedFacts,
       notes,
       translationSlug: fm.translation_slug || '',

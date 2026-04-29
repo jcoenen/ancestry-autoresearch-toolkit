@@ -1,17 +1,32 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useSearch, type SearchResult } from '../useSearch'
 
 export default function SearchBar() {
   const [query, setQuery] = useState('')
+  const [isFocused, setIsFocused] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
   const inputRef = useRef<HTMLInputElement>(null)
+  const { search } = useSearch()
+
+  const suggestions = useMemo(() => {
+    const trimmed = query.trim()
+    if (trimmed.length < 2) return []
+    const results = search(trimmed)
+    return [
+      ...results.people.slice(0, 5),
+      ...results.sources.slice(0, 3),
+      ...results.media.slice(0, 2),
+    ].sort((a, b) => a.score - b.score).slice(0, 7)
+  }, [query, search])
 
   // Sync input with URL query param when on /search
   useEffect(() => {
     if (location.pathname === '/search') {
       const params = new URLSearchParams(location.search)
-      setQuery(params.get('q') || '')
+      const id = window.setTimeout(() => setQuery(params.get('q') || ''), 0)
+      return () => window.clearTimeout(id)
     }
   }, [location])
 
@@ -35,6 +50,12 @@ export default function SearchBar() {
     }
   }
 
+  function handleSuggestion(result: SearchResult) {
+    setQuery(result.item.title)
+    setIsFocused(false)
+    navigate(result.item.link)
+  }
+
   return (
     <form onSubmit={handleSubmit} className="relative flex items-center">
       <svg
@@ -49,6 +70,8 @@ export default function SearchBar() {
         placeholder="Search..."
         value={query}
         onChange={e => setQuery(e.target.value)}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => window.setTimeout(() => setIsFocused(false), 120)}
         className="w-36 focus:w-52 transition-all pl-8 pr-8 py-1.5 rounded-lg border border-stone-200 bg-stone-50 text-sm text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-200 focus:border-amber-400 focus:bg-white"
       />
       {query && (
@@ -61,6 +84,37 @@ export default function SearchBar() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
+      )}
+      {isFocused && suggestions.length > 0 && (
+        <div className="absolute left-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-stone-200 bg-white shadow-lg overflow-hidden">
+          {suggestions.map((result, i) => (
+            <button
+              key={`${result.item.type}-${result.item.link}-${i}`}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault()
+                handleSuggestion(result)
+              }}
+              className="block w-full text-left px-3 py-2 hover:bg-amber-50 border-b border-stone-100 last:border-b-0"
+            >
+              <span className="flex items-start justify-between gap-3">
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-stone-800 truncate">{result.item.title}</span>
+                  <span className="block text-xs text-stone-500 truncate">{result.item.subtitle}</span>
+                </span>
+                <span className="mt-0.5 shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-stone-500">
+                  {result.item.type}
+                </span>
+              </span>
+            </button>
+          ))}
+          <button
+            type="submit"
+            className="block w-full px-3 py-2 text-left text-xs font-medium text-amber-700 hover:bg-amber-50"
+          >
+            See all results for &ldquo;{query.trim()}&rdquo;
+          </button>
+        </div>
       )}
     </form>
   )

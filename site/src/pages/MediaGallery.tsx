@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useData, usePeople, MEDIA_BASE } from '../useData'
 import FamilyFilterDropdown from '../components/FamilyFilterDropdown'
 import { useLightbox } from '../hooks/useLightbox'
@@ -18,6 +18,8 @@ const TYPE_LABELS: Record<string, string> = {
 export default function MediaGallery() {
   const { media, sources } = useData()
   const people = usePeople()
+  const [searchParams] = useSearchParams()
+  const [searchText, setSearchText] = useState(searchParams.get('search') || '')
   const [typeFilter, setTypeFilter] = useState('')
   const [familyFilter, setFamilyFilter] = useState<Set<string>>(new Set())
 
@@ -59,10 +61,20 @@ export default function MediaGallery() {
 
   const filtered = useMemo(() => {
     let result = media
+    const query = searchText.trim().toLowerCase()
+    if (query) {
+      result = result.filter(m => [
+        m.person,
+        m.description,
+        m.path,
+        m.sourceUrl,
+        TYPE_LABELS[m.type] || m.type,
+      ].filter(Boolean).join(' ').toLowerCase().includes(query))
+    }
     if (typeFilter) result = result.filter(m => m.type === typeFilter)
     if (familyFilter.size > 0) result = result.filter(m => familyFilter.has(mediaFamilyMap.get(m.path) || ''))
     return result
-  }, [media, typeFilter, familyFilter, mediaFamilyMap])
+  }, [media, searchText, typeFilter, familyFilter, mediaFamilyMap])
 
   const lightbox = useLightbox(filtered)
 
@@ -75,6 +87,22 @@ export default function MediaGallery() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-8">
+        <label className="relative">
+          <span className="sr-only">Search media</span>
+          <svg
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none"
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          </svg>
+          <input
+            type="search"
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="Search media"
+            className="w-48 rounded-full border border-stone-200 bg-white py-1.5 pl-8 pr-3 text-sm text-stone-800 placeholder:text-stone-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+          />
+        </label>
         <FamilyFilterDropdown
           families={families}
           selected={familyFilter}
@@ -110,7 +138,7 @@ export default function MediaGallery() {
 
       {/* Grid */}
       {filtered.length === 0 ? (
-        <div className="text-center py-12 text-stone-400">No media in this category.</div>
+        <div className="text-center py-12 text-stone-400">No media matched the current filters.</div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map((m, i) => (

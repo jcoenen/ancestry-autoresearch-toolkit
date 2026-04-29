@@ -86,6 +86,7 @@ export interface SourceEntry {
   fullText: string;
   url: string;
   persons: string[];
+  families: string[];
   extractedFacts: string;
   notes: string;
   translationSlug: string;
