@@ -55,15 +55,17 @@ function inferMilitaryConflict(text: string): string {
 }
 
 function militaryBranchLabels(p: Person): string[] {
-  const structured = p.militaryService?.map(s => s.branch).filter(hasKnownValue) || []
-  if (structured.length > 0) return [...new Set(structured)]
+  if (p.militaryService?.length) {
+    return [...new Set(p.militaryService.map(s => s.branch).filter(hasKnownValue))]
+  }
   const inferred = inferMilitaryBranch(p.military || '')
   return inferred ? [inferred] : []
 }
 
 function militaryConflictLabels(p: Person): string[] {
-  const structured = p.militaryService?.map(s => s.conflict).filter(hasKnownValue) || []
-  if (structured.length > 0) return [...new Set(structured)]
+  if (p.militaryService?.length) {
+    return [...new Set(p.militaryService.map(s => s.conflict).filter(hasKnownValue))]
+  }
   const inferred = inferMilitaryConflict(p.military || '')
   return inferred ? [inferred] : []
 }
@@ -337,13 +339,12 @@ export default function StatsPage() {
     const totalImmigrants = [...immCounts.values()].reduce((s, item) => s + item.value, 0)
 
     // --- Military ---
-    const milCounts = new Map<string, number>()
     const milBranchCounts = new Map<string, number>()
     const milConflictCounts = new Map<string, number>()
+    let totalMilitary = 0
     for (const p of pub) {
-      if (p.military && p.military !== '—') {
-        const mil = p.military.trim()
-        milCounts.set(mil, (milCounts.get(mil) || 0) + 1)
+      if (hasKnownValue(p.military) || (p.militaryService?.length || 0) > 0) {
+        totalMilitary++
       }
       for (const branch of militaryBranchLabels(p)) {
         milBranchCounts.set(branch, (milBranchCounts.get(branch) || 0) + 1)
@@ -352,10 +353,6 @@ export default function StatsPage() {
         milConflictCounts.set(conflict, (milConflictCounts.get(conflict) || 0) + 1)
       }
     }
-    const topMilitary = [...milCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 12)
-    const totalMilitary = [...milCounts.values()].reduce((s, n) => s + n, 0)
     const topMilitaryBranches = [...milBranchCounts.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 12)
@@ -392,7 +389,7 @@ export default function StatsPage() {
       avgLifespan, longest, shortest, avgLifespanByCentury,
       avgChildren, childDistItems, mostChildren,
       birthDecadeItems, deathDecadeItems,
-      topOccupations, topPlaces, topImmigration, totalImmigrants, topMilitary, totalMilitary, topMilitaryBranches, topMilitaryConflicts, topReligions,
+      topOccupations, topPlaces, topImmigration, totalImmigrants, totalMilitary, topMilitaryBranches, topMilitaryConflicts, topReligions,
       confCounts, sourceTypeItems,
       withLifespan: withLifespan.length,
     }
@@ -506,7 +503,7 @@ export default function StatsPage() {
       )}
 
       {/* Military */}
-      {stats.topMilitary.length > 0 && (
+      {stats.totalMilitary > 0 && (
         <Section title={`Military Service (${stats.totalMilitary} people)`}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {stats.topMilitaryBranches.length > 0 && (
@@ -529,10 +526,6 @@ export default function StatsPage() {
                 }))} />
               </div>
             )}
-          </div>
-          <div className="mt-6">
-            <h3 className="text-sm font-semibold text-stone-500 uppercase tracking-wide mb-3">Original Vault Labels</h3>
-            <BarChart items={stats.topMilitary.map(([mil, count]) => ({ label: mil, value: count, link: `/people?military=${encodeURIComponent(mil)}` }))} />
           </div>
         </Section>
       )}

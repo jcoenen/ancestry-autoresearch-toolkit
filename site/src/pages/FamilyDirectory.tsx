@@ -151,6 +151,15 @@ export default function FamilyDirectory() {
   }
 
   const hasAdvancedFilters = confidenceFilter.size > 0 || yearFrom || yearTo || sourceFilter || militaryFilter || militaryBranchFilter || militaryConflictFilter || occupationFilter || religionFilter || immigrationFilter
+  const activeFilterLabels = [
+    sourceFilter ? `Source: ${sourceFilter}` : '',
+    militaryFilter ? `Military: ${militaryFilter}` : '',
+    militaryBranchFilter ? `Military branch: ${militaryBranchFilter}` : '',
+    militaryConflictFilter ? `Military conflict: ${militaryConflictFilter}` : '',
+    occupationFilter ? `Occupation: ${occupationFilter}` : '',
+    religionFilter ? `Religion: ${religionFilter}` : '',
+    immigrationFilter ? `Migration: ${immigrationFilter}` : '',
+  ].filter(Boolean)
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
@@ -158,6 +167,20 @@ export default function FamilyDirectory() {
       <p className="mt-2 text-stone-500 mb-6">
         {people.length} people across {families.length} family lines
       </p>
+
+      {activeFilterLabels.length > 0 && (
+        <div className="mb-5 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">Filtered by</span>
+          {activeFilterLabels.map(label => (
+            <span key={label} className="rounded-full bg-white px-3 py-1 text-xs font-medium text-stone-700 ring-1 ring-amber-200">
+              {label}
+            </span>
+          ))}
+          <Link to="/people" className="ml-auto text-xs font-medium text-amber-700 hover:text-amber-800">
+            Clear filters
+          </Link>
+        </div>
+      )}
 
       {/* Filters row 1 */}
       <div className="flex flex-wrap items-center gap-3 mb-3">
