@@ -23,6 +23,11 @@ function decade(year: number): string {
   return `${d}s`
 }
 
+function decadeStart(label: string): number | null {
+  const match = label.match(/^(\d{4})s$/)
+  return match ? parseInt(match[1], 10) : null
+}
+
 function century(year: number): string {
   return `${Math.floor((year - 1) / 100) + 1}th`
 }
@@ -70,6 +75,13 @@ function militaryConflictLabels(p: Person): string[] {
   return inferred ? [inferred] : []
 }
 
+function occupationCategoryLabels(p: Person): string[] {
+  if (p.occupations?.length) {
+    return [...new Set(p.occupations.map(o => o.category).filter(hasKnownValue))]
+  }
+  return hasKnownValue(p.occupation) ? ['Other specific occupations'] : []
+}
+
 function shortMigrationSourceTitle(source: SourceEntry): string {
   const year = extractYear(source.date)
   const title = source.title || source.id
@@ -88,39 +100,6 @@ function normalizeReligion(value: string): string {
   if (raw.includes('baptist')) return 'Baptist'
   if (raw.includes('reform')) return 'Reformed'
   return value.trim().replace(/\b\w/g, c => c.toUpperCase())
-}
-
-function normalizeOccupation(value: string): string {
-  const raw = value.toLowerCase()
-  if (raw.includes('farmer') || raw.includes('farm ')) return 'Agriculture / Farming'
-  if (raw.includes('military') || raw.includes('army') || raw.includes('wwii') || raw.includes('revolutionary war') || raw.includes('captain')) return 'Military'
-  if (raw.includes('teacher') || raw.includes('school') || raw.includes('education')) return 'Education'
-  if (raw.includes('church') || raw.includes('sister') || raw.includes('parish')) return 'Religious service'
-  if (raw.includes('factory') || raw.includes('wire works') || raw.includes('construction') || raw.includes('service') || raw.includes('elevator')) return 'Trades / Manufacturing'
-  if (raw.includes('oil') || raw.includes('manager') || raw.includes('owner') || raw.includes('restaurant') || raw.includes('agent')) return 'Business / Management'
-  if (raw.includes('driver') || raw.includes('route')) return 'Transportation'
-  if (raw.includes('social services') || raw.includes('administrative')) return 'Office / Public service'
-  return 'Other specific occupations'
-}
-
-function normalizeBirthplace(value: string): string {
-  const raw = value.trim()
-  const lower = raw.toLowerCase()
-  if (lower.includes('wisconsin') || /\bwi\b/i.test(raw)) return 'Wisconsin, USA'
-  if (lower.includes('kentucky') || /\bky\b/i.test(raw)) return 'Kentucky, USA'
-  if (lower.includes('virginia')) return 'Virginia, USA'
-  if (lower.includes('michigan')) return 'Michigan, USA'
-  if (lower.includes('pennsylvania')) return 'Pennsylvania, USA'
-  if (lower.includes('north carolina')) return 'North Carolina, USA'
-  if (lower.includes('south carolina')) return 'South Carolina, USA'
-  if (lower.includes('tennessee')) return 'Tennessee, USA'
-  if (lower.includes('quebec') || lower.includes('québec') || lower.includes('canada')) return 'Quebec / Canada'
-  if (lower.includes('bohemia') || lower.includes('czech')) return 'Bohemia / Czech lands'
-  if (lower.includes('germany') || lower.includes('prussia') || lower.includes('pommern') || lower.includes('pomerania')) return 'Germany / Prussia'
-  if (lower.includes('france') || lower.includes('normandie') || lower.includes('rouen')) return 'France'
-  if (lower.includes('ireland')) return 'Ireland'
-  if (lower.includes('netherlands') || lower.includes('holland')) return 'Netherlands'
-  return raw.replace(/\s+\((likely|probable|uncertain)[^)]+\)/gi, '')
 }
 
 /* ── Bar chart component ─────────────────────────────────────── */
@@ -257,7 +236,11 @@ export default function StatsPage() {
     }
     const childDistItems = [...childDist.entries()]
       .sort((a, b) => a[0] - b[0])
-      .map(([n, count]) => ({ label: `${n} child${n !== 1 ? 'ren' : ''}`, value: count }))
+      .map(([n, count]) => ({
+        label: `${n} child${n !== 1 ? 'ren' : ''}`,
+        value: count,
+        link: `/people?childrenCount=${n}`,
+      }))
     const mostChildren = withChildren.sort((a, b) => b.children.length - a.children.length).slice(0, 5)
 
     // --- Births by decade ---
@@ -269,7 +252,14 @@ export default function StatsPage() {
     }
     const birthDecadeItems = [...birthsByDecade.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([d, count]) => ({ label: d, value: count }))
+      .map(([d, count]) => {
+        const start = decadeStart(d)
+        return {
+          label: d,
+          value: count,
+          link: start !== null ? `/people?bornFrom=${start}&bornTo=${start + 9}` : undefined,
+        }
+      })
 
     // --- Deaths by decade ---
     const deathsByDecade = new Map<string, number>()
@@ -280,13 +270,19 @@ export default function StatsPage() {
     }
     const deathDecadeItems = [...deathsByDecade.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([d, count]) => ({ label: d, value: count }))
+      .map(([d, count]) => {
+        const start = decadeStart(d)
+        return {
+          label: d,
+          value: count,
+          link: start !== null ? `/people?diedFrom=${start}&diedTo=${start + 9}` : undefined,
+        }
+      })
 
     // --- Occupations ---
     const occCounts = new Map<string, number>()
     for (const p of pub) {
-      if (hasKnownValue(p.occupation)) {
-        const occ = normalizeOccupation(p.occupation)
+      for (const occ of occupationCategoryLabels(p)) {
         occCounts.set(occ, (occCounts.get(occ) || 0) + 1)
       }
     }
@@ -298,7 +294,7 @@ export default function StatsPage() {
     const placeCounts = new Map<string, number>()
     for (const p of pub) {
       const raw = p.birthplace?.trim()
-      const place = hasKnownValue(raw) ? normalizeBirthplace(raw) : 'Unknown'
+      const place = hasKnownValue(raw) ? raw : 'Unknown'
       placeCounts.set(place, (placeCounts.get(place) || 0) + 1)
     }
     const topPlaces = [...placeCounts.entries()]
@@ -444,7 +440,7 @@ export default function StatsPage() {
 
       {/* Names */}
       <Section title="Most Common First Names">
-        <BarChart items={stats.topNames.map(([name, count]) => ({ label: name, value: count, link: `/people?search=${encodeURIComponent(name)}` }))} />
+        <BarChart items={stats.topNames.map(([name, count]) => ({ label: name, value: count, link: `/people?firstName=${encodeURIComponent(name)}` }))} />
       </Section>
 
       <Section title="Surname Distribution">
@@ -516,14 +512,14 @@ export default function StatsPage() {
         <BarChart items={stats.topPlaces.map(([place, count]) => ({
           label: place,
           value: count,
-          link: place !== 'Unknown' ? `/people?search=${encodeURIComponent(place)}` : undefined,
+          link: place !== 'Unknown' ? `/people?birthplace=${encodeURIComponent(place)}` : undefined,
         }))} />
       </Section>
 
       {/* Occupations */}
       {stats.topOccupations.length > 0 && (
         <Section title="Occupations">
-          <BarChart items={stats.topOccupations.map(([occ, count]) => ({ label: occ, value: count, link: `/people?occupation=${encodeURIComponent(occ)}` }))} />
+          <BarChart items={stats.topOccupations.map(([occ, count]) => ({ label: occ, value: count, link: `/people?occupationCategory=${encodeURIComponent(occ)}` }))} />
         </Section>
       )}
 
@@ -565,7 +561,7 @@ export default function StatsPage() {
       {/* Religion */}
       {stats.topReligions.length > 0 && (
         <Section title="Religious Affiliation">
-          <BarChart items={stats.topReligions.map(([r, count]) => ({ label: r, value: count }))} />
+          <BarChart items={stats.topReligions.map(([r, count]) => ({ label: r, value: count, link: `/people?religion=${encodeURIComponent(r)}` }))} />
         </Section>
       )}
 

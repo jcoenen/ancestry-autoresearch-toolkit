@@ -71,6 +71,25 @@ const ALLOWED_MILITARY_CONFLICTS = [
   'Unknown',
 ];
 const ALLOWED_MILITARY_CONFIDENCE = ['high', 'moderate', 'low'];
+const ALLOWED_OCCUPATION_CATEGORIES = [
+  'Agriculture / Farming',
+  'Business / Management',
+  'Education',
+  'Healthcare',
+  'Religious / Clergy',
+  'Trades / Manufacturing',
+  'Transportation',
+  'Public Service / Government',
+  'Military',
+  'Domestic / Homemaking',
+  'Arts / Creative',
+  'Retail / Service',
+  'Technology / Engineering',
+  'Legal / Finance',
+  'Other specific occupations',
+  'Unknown',
+];
+const ALLOWED_OCCUPATION_CONFIDENCE = ['high', 'moderate', 'low'];
 
 /**
  * Validates a single media ref path against METHODOLOGY.md rules.
@@ -539,6 +558,48 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
       }
     }
 
+    // Validate structured occupations frontmatter. The Vital row remains the
+    // human-readable summary; structured entries drive category stats/search.
+    if (fm.occupations !== undefined) {
+      if (!Array.isArray(fm.occupations)) {
+        result.errors.push(`people/${file}: occupations must be an array`);
+      } else {
+        fm.occupations.forEach((entry: unknown, index: number) => {
+          const prefix = `people/${file}: occupations[${index}]`;
+          if (entry == null || typeof entry !== 'object' || Array.isArray(entry)) {
+            result.errors.push(`${prefix} must be an object`);
+            return;
+          }
+          const occ = entry as Record<string, unknown>;
+          const category = String(occ.category || '').trim();
+          const label = String(occ.label || '').trim();
+          const confidence = String(occ.confidence || '').trim();
+          const sources = Array.isArray(occ.sources)
+            ? occ.sources.map(String).map(s => s.trim()).filter(Boolean)
+            : (occ.source || occ.source_id ? [String(occ.source || occ.source_id).trim()] : []);
+
+          if (!category) result.errors.push(`${prefix}: category is required`);
+          else if (!ALLOWED_OCCUPATION_CATEGORIES.includes(category)) {
+            result.errors.push(`${prefix}: category "${category}" is not recognized. Use one of: ${ALLOWED_OCCUPATION_CATEGORIES.join(', ')}`);
+          }
+
+          if (!label) result.errors.push(`${prefix}: label is required`);
+
+          if (sources.length === 0) result.errors.push(`${prefix}: at least one source is required`);
+          for (const source of sources) {
+            if (!sourceIdSet.has(source)) {
+              result.errors.push(`${prefix}: source "${source}" does not exist in sources/`);
+            }
+          }
+
+          if (!confidence) result.errors.push(`${prefix}: confidence is required`);
+          else if (!ALLOWED_OCCUPATION_CONFIDENCE.includes(confidence)) {
+            result.errors.push(`${prefix}: confidence "${confidence}" must be high, moderate, or low`);
+          }
+        });
+      }
+    }
+
     // Check wikilinks in body (Father/Mother/Spouse rows) point to existing files
     // Handles both [[path]] and [[path\|alias]] (Obsidian escaped pipe) formats
     const wikilinkPattern = /\[\[([^\]|\\]+?)(?:[\\|][^\]]*?)?\]\]/g;
@@ -586,6 +647,14 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
     if (hasMilitaryVital && !hasStructuredMilitary) {
       result.warnings.push(
         `people/${file}: Military vital row is not mirrored in structured military_service frontmatter — branch/conflict stats and GEDCOM export will be less precise`
+      );
+    }
+
+    const hasOccupationVital = vitalTable.some(([f, v]) => f === 'Occupation' && v && !v.trim().startsWith('—'));
+    const hasStructuredOccupations = Array.isArray(fm.occupations) && fm.occupations.length > 0;
+    if (hasOccupationVital && !hasStructuredOccupations) {
+      result.warnings.push(
+        `people/${file}: Occupation vital row is not mirrored in structured occupations frontmatter — occupation category stats and GEDCOM export will be less precise`
       );
     }
 

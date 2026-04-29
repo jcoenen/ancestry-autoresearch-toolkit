@@ -25,6 +25,7 @@ interface Person {
   spouses: { id: string; name: string; marriageDate: string }[];
   children: { id: string }[];
   occupation: string;
+  occupations: OccupationEntry[];
   religion: string;
   immigration: string;
   emigration: string;
@@ -56,6 +57,19 @@ interface MilitaryService {
   dates: string;
   place: string;
   source: string;
+  confidence: string;
+  notes: string;
+}
+
+interface OccupationEntry {
+  category: string;
+  label: string;
+  role: string;
+  employer: string;
+  industry: string;
+  dates: string;
+  place: string;
+  sources: string[];
   confidence: string;
   notes: string;
 }
@@ -191,6 +205,16 @@ function militaryServiceNote(service: MilitaryService): string {
     service.rank ? `Rank: ${service.rank}` : '',
     service.unit ? `Unit: ${service.unit}` : '',
     service.notes ? `Notes: ${service.notes}` : '',
+  ].filter(Boolean).join('; ');
+}
+
+function occupationNote(occupation: OccupationEntry): string {
+  return [
+    occupation.category ? `Category: ${occupation.category}` : '',
+    occupation.role ? `Role: ${occupation.role}` : '',
+    occupation.employer ? `Employer: ${occupation.employer}` : '',
+    occupation.industry ? `Industry: ${occupation.industry}` : '',
+    occupation.notes ? `Notes: ${occupation.notes}` : '',
   ].filter(Boolean).join('; ');
 }
 
@@ -422,8 +446,22 @@ function main() {
       lines.push(gedLine(1, 'NICK', p.nickname));
     }
 
-    // Occupation
-    if (p.occupation) {
+    // Occupation. GEDCOM 5.5.1 stores occupations as OCCU facts; structured
+    // category/detail fields are preserved as notes under each OCCU fact.
+    if (p.occupations?.length) {
+      for (const occupation of p.occupations) {
+        lines.push(gedLine(1, 'OCCU', occupation.label || occupation.role || occupation.category));
+        const occupationDate = toGedcomDate(occupation.dates);
+        if (occupationDate) lines.push(gedLine(2, 'DATE', occupationDate));
+        else if (occupation.dates) lines.push(gedLine(2, 'NOTE', `Dates: ${occupation.dates}`));
+        if (occupation.place) lines.push(gedLine(2, 'PLAC', occupation.place));
+        const note = occupationNote(occupation);
+        if (note) lines.push(...gedNote(2, note));
+        for (const srcId of occupation.sources || []) {
+          if (sourceIdSet.has(srcId)) lines.push(gedLine(2, 'SOUR', `@${srcId}@`));
+        }
+      }
+    } else if (p.occupation) {
       lines.push(gedLine(1, 'OCCU', p.occupation));
     }
 

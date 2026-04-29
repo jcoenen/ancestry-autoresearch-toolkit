@@ -1,21 +1,16 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { usePeople, formatYear, confidenceColor, extractYear } from '../useData'
 import FamilyFilterDropdown from '../components/FamilyFilterDropdown'
 
 const CONFIDENCE_ORDER = ['high', 'moderate', 'medium', 'low', 'stub', 'speculative']
 
-function normalizeOccupation(value: string): string {
-  const raw = value.toLowerCase()
-  if (raw.includes('farmer') || raw.includes('farm ')) return 'Agriculture / Farming'
-  if (raw.includes('military') || raw.includes('army') || raw.includes('wwii') || raw.includes('revolutionary war') || raw.includes('captain')) return 'Military'
-  if (raw.includes('teacher') || raw.includes('school') || raw.includes('education')) return 'Education'
-  if (raw.includes('church') || raw.includes('sister') || raw.includes('parish')) return 'Religious service'
-  if (raw.includes('factory') || raw.includes('wire works') || raw.includes('construction') || raw.includes('service') || raw.includes('elevator')) return 'Trades / Manufacturing'
-  if (raw.includes('oil') || raw.includes('manager') || raw.includes('owner') || raw.includes('restaurant') || raw.includes('agent')) return 'Business / Management'
-  if (raw.includes('driver') || raw.includes('route')) return 'Transportation'
-  if (raw.includes('social services') || raw.includes('administrative')) return 'Office / Public service'
-  return 'Other specific occupations'
+function normalizedReligion(value: string): string {
+  const raw = value.trim().toLowerCase()
+  if (raw.includes('catholic') || raw.includes('rooms-ka')) return 'Catholic'
+  if (raw.includes('lutheran')) return 'Lutheran'
+  if (raw.includes('methodist')) return 'Methodist'
+  return value.trim().replace(/\b\w/g, c => c.toUpperCase())
 }
 
 function confidencePillStyle(confidence: string, active: boolean): string {
@@ -35,19 +30,27 @@ export default function FamilyDirectory() {
   const initialFamily = searchParams.get('family') || ''
   const initialSearch = searchParams.get('search') || ''
   const sourceFilter = searchParams.get('source') || ''
+  const firstNameFilter = searchParams.get('firstName') || ''
+  const birthplaceFilter = searchParams.get('birthplace') || ''
+  const childrenCountFilter = searchParams.get('childrenCount') || ''
   const militaryFilter = searchParams.get('military') || ''
   const militaryBranchFilter = searchParams.get('militaryBranch') || ''
   const militaryConflictFilter = searchParams.get('militaryConflict') || ''
   const occupationFilter = searchParams.get('occupation') || ''
+  const occupationCategoryFilter = searchParams.get('occupationCategory') || ''
   const religionFilter = searchParams.get('religion') || ''
   const immigrationFilter = searchParams.get('immigration') || ''
+  const initialYearFrom = searchParams.get('bornFrom') || ''
+  const initialYearTo = searchParams.get('bornTo') || ''
+  const diedFromFilter = searchParams.get('diedFrom') || ''
+  const diedToFilter = searchParams.get('diedTo') || ''
   const [search, setSearch] = useState(initialSearch)
   const [familyFilter, setFamilyFilter] = useState<Set<string>>(
     initialFamily ? new Set([initialFamily]) : new Set()
   )
   const [confidenceFilter, setConfidenceFilter] = useState<Set<string>>(new Set())
-  const [yearFrom, setYearFrom] = useState('')
-  const [yearTo, setYearTo] = useState('')
+  const [yearFrom, setYearFrom] = useState(initialYearFrom)
+  const [yearTo, setYearTo] = useState(initialYearTo)
 
   const families = useMemo(() => {
     const set = new Set(people.map(p => p.family).filter(Boolean))
@@ -74,6 +77,22 @@ export default function FamilyDirectory() {
       result = result.filter(p => p.sources.includes(sourceFilter))
     }
 
+    if (firstNameFilter) {
+      const first = firstNameFilter.toLowerCase()
+      result = result.filter(p => p.name.toLowerCase().replace(/"[^"]+"/g, '').replace(/\([^)]+\)/g, '').trim().split(/\s+/)[0] === first)
+    }
+
+    if (birthplaceFilter) {
+      result = result.filter(p => p.birthplace === birthplaceFilter)
+    }
+
+    if (childrenCountFilter) {
+      const childCount = parseInt(childrenCountFilter, 10)
+      if (!Number.isNaN(childCount)) {
+        result = result.filter(p => p.children.length === childCount)
+      }
+    }
+
     if (militaryFilter) {
       result = result.filter(p => p.military === militaryFilter)
     }
@@ -87,14 +106,15 @@ export default function FamilyDirectory() {
     }
 
     if (occupationFilter) {
-      result = result.filter(p =>
-        p.occupation === occupationFilter ||
-        (p.occupation && p.occupation !== '—' && normalizeOccupation(p.occupation) === occupationFilter)
-      )
+      result = result.filter(p => p.occupation === occupationFilter)
+    }
+
+    if (occupationCategoryFilter) {
+      result = result.filter(p => p.occupations?.some(o => o.category === occupationCategoryFilter))
     }
 
     if (religionFilter) {
-      result = result.filter(p => p.religion === religionFilter)
+      result = result.filter(p => normalizedReligion(p.religion || '') === religionFilter)
     }
 
     if (immigrationFilter) {
@@ -113,6 +133,18 @@ export default function FamilyDirectory() {
       })
     }
 
+    const diedFrom = diedFromFilter ? parseInt(diedFromFilter, 10) : null
+    const diedTo = diedToFilter ? parseInt(diedToFilter, 10) : null
+    if (diedFrom !== null || diedTo !== null) {
+      result = result.filter(p => {
+        const year = extractYear(p.died)
+        if (year === null) return true
+        if (diedFrom !== null && year < diedFrom) return false
+        if (diedTo !== null && year > diedTo) return false
+        return true
+      })
+    }
+
     if (search) {
       const q = search.toLowerCase()
       result = result.filter(p =>
@@ -122,6 +154,10 @@ export default function FamilyDirectory() {
         p.burial.toLowerCase().includes(q) ||
         p.residence.toLowerCase().includes(q) ||
         p.occupation.toLowerCase().includes(q) ||
+        p.occupations?.some(o =>
+          [o.category, o.label, o.role, o.employer, o.industry, o.dates, o.place, o.notes]
+            .some(value => value.toLowerCase().includes(q))
+        ) ||
         p.military.toLowerCase().includes(q) ||
         p.militaryService?.some(s =>
           [s.branch, s.conflict, s.role, s.rank, s.unit, s.dates, s.place, s.notes]
@@ -136,7 +172,7 @@ export default function FamilyDirectory() {
     }
 
     return result
-  }, [people, search, familyFilter, confidenceFilter, yearFrom, yearTo, sourceFilter, militaryFilter, militaryBranchFilter, militaryConflictFilter, occupationFilter, religionFilter, immigrationFilter])
+  }, [people, search, familyFilter, confidenceFilter, yearFrom, yearTo, diedFromFilter, diedToFilter, sourceFilter, firstNameFilter, birthplaceFilter, childrenCountFilter, militaryFilter, militaryBranchFilter, militaryConflictFilter, occupationFilter, occupationCategoryFilter, religionFilter, immigrationFilter])
 
   const grouped = useMemo(() => {
     const groups: Record<string, typeof filtered> = {}
@@ -166,13 +202,37 @@ export default function FamilyDirectory() {
     })
   }
 
-  const hasAdvancedFilters = confidenceFilter.size > 0 || yearFrom || yearTo || sourceFilter || militaryFilter || militaryBranchFilter || militaryConflictFilter || occupationFilter || religionFilter || immigrationFilter
+  useEffect(() => {
+    setSearch(initialSearch)
+  }, [initialSearch])
+
+  useEffect(() => {
+    setFamilyFilter(initialFamily ? new Set([initialFamily]) : new Set())
+  }, [initialFamily])
+
+  useEffect(() => {
+    setYearFrom(initialYearFrom)
+  }, [initialYearFrom])
+
+  useEffect(() => {
+    setYearTo(initialYearTo)
+  }, [initialYearTo])
+
+  const hasAdvancedFilters = confidenceFilter.size > 0 || yearFrom || yearTo || diedFromFilter || diedToFilter || sourceFilter || initialSearch || firstNameFilter || birthplaceFilter || childrenCountFilter || militaryFilter || militaryBranchFilter || militaryConflictFilter || occupationFilter || occupationCategoryFilter || religionFilter || immigrationFilter
   const activeFilterLabels = [
+    initialFamily ? `Family: ${initialFamily}` : '',
+    initialSearch ? `Search: ${initialSearch}` : '',
+    initialYearFrom || initialYearTo ? `Born: ${initialYearFrom || '...'}-${initialYearTo || '...'}` : '',
+    diedFromFilter || diedToFilter ? `Died: ${diedFromFilter || '...'}-${diedToFilter || '...'}` : '',
     sourceFilter ? `Source: ${sourceFilter}` : '',
+    firstNameFilter ? `First name: ${firstNameFilter}` : '',
+    birthplaceFilter ? `Birthplace: ${birthplaceFilter}` : '',
+    childrenCountFilter ? `Children: ${childrenCountFilter}` : '',
     militaryFilter ? `Military: ${militaryFilter}` : '',
     militaryBranchFilter ? `Military branch: ${militaryBranchFilter}` : '',
     militaryConflictFilter ? `Military conflict: ${militaryConflictFilter}` : '',
     occupationFilter ? `Occupation: ${occupationFilter}` : '',
+    occupationCategoryFilter ? `Occupation category: ${occupationCategoryFilter}` : '',
     religionFilter ? `Religion: ${religionFilter}` : '',
     immigrationFilter ? `Migration: ${immigrationFilter}` : '',
   ].filter(Boolean)

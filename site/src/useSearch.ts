@@ -159,6 +159,9 @@ export function useSearch() {
       const militaryServiceText = (p.militaryService || [])
         .map(s => [s.branch, s.conflict, s.role, s.rank, s.unit, s.dates, s.place, s.notes].filter(Boolean).join(' '))
         .join(' ')
+      const occupationText = (p.occupations || [])
+        .map(o => [o.category, o.label, o.role, o.employer, o.industry, o.dates, o.place, o.notes].filter(Boolean).join(' '))
+        .join(' ')
       const mediaText = (p.media || [])
         .map(m => [m.path, m.person, m.description, MEDIA_TYPE_LABELS[m.type] || m.type].filter(Boolean).join(' '))
         .join(' ')
@@ -181,7 +184,7 @@ export function useSearch() {
         searchFamily: p.family || '',
         searchDates: p.privacy ? '' : [p.born, p.died, formatYear(p.born), formatYear(p.died), p.created].filter(Boolean).join(' '),
         searchPlaces: p.privacy ? '' : [p.birthplace, p.deathPlace, p.burial, p.residence].filter(Boolean).join(' '),
-        searchOccupation: p.privacy ? '' : (p.occupation || ''),
+        searchOccupation: p.privacy ? '' : [p.occupation, occupationText].filter(Boolean).join(' '),
         searchRelations: p.privacy ? '' : [...parentNames, ...spouseNames, ...childNames].join(' '),
         searchLifeEvents: p.privacy ? '' : [
           p.religion,

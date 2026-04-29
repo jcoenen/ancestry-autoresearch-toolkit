@@ -63,6 +63,7 @@ interface PersonData {
   burial: string;
   religion: string;
   occupation: string;
+  occupations: OccupationEntry[];
   military: string;
   militaryService: MilitaryService[];
   immigration: string;
@@ -94,6 +95,19 @@ interface MilitaryService {
   dates: string;
   place: string;
   source: string;
+  confidence: string;
+  notes: string;
+}
+
+interface OccupationEntry {
+  category: string;
+  label: string;
+  role: string;
+  employer: string;
+  industry: string;
+  dates: string;
+  place: string;
+  sources: string[];
   confidence: string;
   notes: string;
 }
@@ -239,6 +253,40 @@ function normalizeMilitaryService(value: unknown): MilitaryService[] {
       entry.role ||
       entry.rank ||
       entry.unit ||
+      entry.dates ||
+      entry.place ||
+      entry.notes
+    );
+}
+
+function normalizeOccupationEntries(value: unknown): OccupationEntry[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((entry): entry is Record<string, unknown> => entry != null && typeof entry === 'object' && !Array.isArray(entry))
+    .map(entry => {
+      const rawSources = Array.isArray(entry.sources)
+        ? entry.sources.map(String)
+        : (entry.source || entry.source_id ? [String(entry.source || entry.source_id)] : []);
+      return {
+        category: String(entry.category || '').trim(),
+        label: String(entry.label || '').trim(),
+        role: String(entry.role || '').trim(),
+        employer: String(entry.employer || '').trim(),
+        industry: String(entry.industry || '').trim(),
+        dates: String(entry.dates || '').trim(),
+        place: String(entry.place || '').trim(),
+        sources: rawSources.map(s => s.trim()).filter(Boolean),
+        confidence: String(entry.confidence || '').trim(),
+        notes: String(entry.notes || '').trim(),
+      };
+    })
+    .filter(entry =>
+      entry.category ||
+      entry.label ||
+      entry.role ||
+      entry.employer ||
+      entry.industry ||
       entry.dates ||
       entry.place ||
       entry.notes
@@ -490,6 +538,7 @@ async function main() {
       burial: isPrivate ? '' : (vitals['Burial'] || ''),
       religion: isPrivate ? '' : (vitals['Religion'] || ''),
       occupation: isPrivate ? '' : (vitals['Occupation'] || ''),
+      occupations: isPrivate ? [] : normalizeOccupationEntries(fm.occupations),
       military: isPrivate ? '' : (vitals['Military'] || ''),
       militaryService: isPrivate ? [] : normalizeMilitaryService(fm.military_service),
       immigration: isPrivate ? '' : (vitals['Immigration'] || ''),

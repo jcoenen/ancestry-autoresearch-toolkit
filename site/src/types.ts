@@ -40,6 +40,7 @@ export interface Person {
   burial: string;
   religion: string;
   occupation: string;
+  occupations: OccupationEntry[];
   military: string;
   militaryService: MilitaryService[];
   immigration: string;
@@ -69,6 +70,19 @@ export interface MilitaryService {
   dates: string;
   place: string;
   source: string;
+  confidence: string;
+  notes: string;
+}
+
+export interface OccupationEntry {
+  category: string;
+  label: string;
+  role: string;
+  employer: string;
+  industry: string;
+  dates: string;
+  place: string;
+  sources: string[];
   confidence: string;
   notes: string;
 }

@@ -168,6 +168,45 @@ Confidence levels:
 - `moderate`: a record type or military marker strongly implies the field, but the text is incomplete.
 - `low`: the field is a lead that needs direct confirmation. Avoid writing low-confidence branch/conflict facts unless the uncertainty is clearly useful.
 
+### Structured Occupations
+
+Use the Vital Information `Occupation` row for a readable life summary, and use `occupations:` frontmatter for machine-readable occupation category statistics, filtering, search, and GEDCOM export. People may have multiple occupation entries when their working life spans distinct categories.
+
+```yaml
+occupations:
+  - category: "Agriculture / Farming"
+    label: "Dairy farmer"
+    role: "Farmer"
+    employer: "Maple Sweet Dairy Farm"
+    industry: "Dairy"
+    dates: ""
+    place: ""
+    sources:
+      - "SRC-OBIT-089"
+    confidence: high
+    notes: ""
+```
+
+Required fields: `category`, `label`, `sources`, and `confidence`. Leave unknown optional fields blank rather than guessing. Keep the `label` close to the source wording; use `category` only for broad reporting.
+
+Allowed categories are: `Agriculture / Farming`, `Business / Management`, `Education`, `Healthcare`, `Religious / Clergy`, `Trades / Manufacturing`, `Transportation`, `Public Service / Government`, `Military`, `Domestic / Homemaking`, `Arts / Creative`, `Retail / Service`, `Technology / Engineering`, `Legal / Finance`, `Other specific occupations`, `Unknown`.
+
+Confidence levels:
+
+- `high`: the source explicitly states the occupation, employer, or role.
+- `moderate`: the occupation is strongly implied by a record or institutional context, but not directly stated.
+- `low`: the occupation is a lead that needs direct confirmation.
+
+### Place Value Hygiene
+
+Place values should preserve meaningful specificity from the source while avoiding lazy spelling or abbreviation variants. Normalize obvious formatting variants in the vault data itself, rather than adding project-specific grouping rules to the site. For example, use one convention for the same town/state value, but keep distinct values such as `West De Pere`, `Town of De Pere`, or `De Pere area` when the source is genuinely that specific or imprecise.
+
+Run the place audit to find likely cleanup candidates:
+
+```bash
+npm run audit:places
+```
+
 Use the reported `Next GEDCOM ID` value. The command scans `people/**/*.md`, reports the highest current ID, and flags duplicate or malformed `gedcom_id` values.
 
 ### When to Create a Person File (CRITICAL)
