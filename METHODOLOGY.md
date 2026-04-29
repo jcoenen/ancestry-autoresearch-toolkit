@@ -138,6 +138,36 @@ Do not copy a "next GEDCOM ID" from handoff notes or other manually maintained d
 npm run next:gedcom-id
 ```
 
+### Structured Military Service
+
+Use the Vital Information `Military` row for a readable summary, and use `military_service:` frontmatter for machine-readable branch/conflict/rank/unit data. GEDCOM 5.5.1 does not provide standard branch or conflict subfields, so the toolkit exports each structured entry as a generic `EVEN` with `TYPE Military Service` and preserves the structured details in notes.
+
+```yaml
+military_service:
+  - branch: "U.S. Army"
+    conflict: "World War II"
+    role: "Military police"
+    rank: ""
+    unit: ""
+    dates: "1943-1946"
+    place: ""
+    source: "SRC-OBIT-063"
+    confidence: high
+    notes: ""
+```
+
+Required fields: `branch`, `source`, and `confidence`. Leave unknown optional fields blank rather than guessing. Use `Unknown` only when the source explicitly confirms military service but does not identify the branch or conflict.
+
+Allowed branches are: `U.S. Army`, `U.S. Army Air Forces`, `U.S. Navy`, `U.S. Marine Corps`, `U.S. Air Force`, `U.S. Coast Guard`, `U.S. National Guard`, `U.S. Army Reserve`, `U.S. Navy Reserve`, `U.S. Marine Corps Reserve`, `U.S. Air Force Reserve`, `Union Army`, `Confederate Army`, `Wisconsin State Guard`, `Unknown`.
+
+Allowed conflicts are: `American Revolution`, `War of 1812`, `U.S. Civil War`, `Spanish-American War`, `World War I`, `World War II`, `Korean War`, `Vietnam War`, `Persian Gulf War`, `War in Afghanistan`, `Iraq War`, `Peacetime service`, `Unknown`.
+
+Confidence levels:
+
+- `high`: the source explicitly states the branch/conflict/rank/unit/role.
+- `moderate`: a record type or military marker strongly implies the field, but the text is incomplete.
+- `low`: the field is a lead that needs direct confirmation. Avoid writing low-confidence branch/conflict facts unless the uncertainty is clearly useful.
+
 Use the reported `Next GEDCOM ID` value. The command scans `people/**/*.md`, reports the highest current ID, and flags duplicate or malformed `gedcom_id` values.
 
 ### When to Create a Person File (CRITICAL)

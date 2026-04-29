@@ -64,6 +64,7 @@ interface PersonData {
   religion: string;
   occupation: string;
   military: string;
+  militaryService: MilitaryService[];
   immigration: string;
   emigration: string;
   naturalization: string;
@@ -82,6 +83,19 @@ interface PersonData {
   created: string;
   _mediaRefs: string[];
   _publicScope?: string;
+}
+
+interface MilitaryService {
+  branch: string;
+  conflict: string;
+  role: string;
+  rank: string;
+  unit: string;
+  dates: string;
+  place: string;
+  source: string;
+  confidence: string;
+  notes: string;
 }
 
 interface MediaEntry {
@@ -200,6 +214,35 @@ function inferPlaceFromDatedVital(val: string | undefined): string {
 
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String) : [];
+}
+
+function normalizeMilitaryService(value: unknown): MilitaryService[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((entry): entry is Record<string, unknown> => entry != null && typeof entry === 'object' && !Array.isArray(entry))
+    .map(entry => ({
+      branch: String(entry.branch || '').trim(),
+      conflict: String(entry.conflict || '').trim(),
+      role: String(entry.role || '').trim(),
+      rank: String(entry.rank || '').trim(),
+      unit: String(entry.unit || '').trim(),
+      dates: String(entry.dates || '').trim(),
+      place: String(entry.place || '').trim(),
+      source: String(entry.source || entry.source_id || '').trim(),
+      confidence: String(entry.confidence || '').trim(),
+      notes: String(entry.notes || '').trim(),
+    }))
+    .filter(entry =>
+      entry.branch ||
+      entry.conflict ||
+      entry.role ||
+      entry.rank ||
+      entry.unit ||
+      entry.dates ||
+      entry.place ||
+      entry.notes
+    );
 }
 
 function publicScopeConfig(): {
@@ -448,6 +491,7 @@ async function main() {
       religion: isPrivate ? '' : (vitals['Religion'] || ''),
       occupation: isPrivate ? '' : (vitals['Occupation'] || ''),
       military: isPrivate ? '' : (vitals['Military'] || ''),
+      militaryService: isPrivate ? [] : normalizeMilitaryService(fm.military_service),
       immigration: isPrivate ? '' : (vitals['Immigration'] || ''),
       emigration: isPrivate ? '' : (vitals['Emigration'] || ''),
       naturalization: isPrivate ? '' : (vitals['Naturalization'] || ''),

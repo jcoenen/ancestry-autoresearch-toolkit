@@ -156,6 +156,9 @@ export function useSearch() {
       const childNames = (p.children || []).map(child => child.name).filter(Boolean)
       const parentNames = [p.fatherName, p.motherName].filter(Boolean)
       const sourceIds = (p.sources || []).join(' ')
+      const militaryServiceText = (p.militaryService || [])
+        .map(s => [s.branch, s.conflict, s.role, s.rank, s.unit, s.dates, s.place, s.notes].filter(Boolean).join(' '))
+        .join(' ')
       const mediaText = (p.media || [])
         .map(m => [m.path, m.person, m.description, MEDIA_TYPE_LABELS[m.type] || m.type].filter(Boolean).join(' '))
         .join(' ')
@@ -183,6 +186,7 @@ export function useSearch() {
         searchLifeEvents: p.privacy ? '' : [
           p.religion,
           p.military,
+          militaryServiceText,
           p.immigration,
           p.emigration,
           p.naturalization,

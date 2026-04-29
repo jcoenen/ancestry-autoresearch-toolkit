@@ -38,6 +38,39 @@ const MEDIA_TYPE_TO_SUBFOLDER: Record<string, string> = {
   MISC: 'misc',
 };
 const VALID_MEDIA_SUBFOLDERS = new Set(Object.values(MEDIA_TYPE_TO_SUBFOLDER));
+const ALLOWED_MILITARY_BRANCHES = [
+  'U.S. Army',
+  'U.S. Army Air Forces',
+  'U.S. Navy',
+  'U.S. Marine Corps',
+  'U.S. Air Force',
+  'U.S. Coast Guard',
+  'U.S. National Guard',
+  'U.S. Army Reserve',
+  'U.S. Navy Reserve',
+  'U.S. Marine Corps Reserve',
+  'U.S. Air Force Reserve',
+  'Union Army',
+  'Confederate Army',
+  'Wisconsin State Guard',
+  'Unknown',
+];
+const ALLOWED_MILITARY_CONFLICTS = [
+  'American Revolution',
+  'War of 1812',
+  'U.S. Civil War',
+  'Spanish-American War',
+  'World War I',
+  'World War II',
+  'Korean War',
+  'Vietnam War',
+  'Persian Gulf War',
+  'War in Afghanistan',
+  'Iraq War',
+  'Peacetime service',
+  'Unknown',
+];
+const ALLOWED_MILITARY_CONFIDENCE = ['high', 'moderate', 'low'];
 
 /**
  * Validates a single media ref path against METHODOLOGY.md rules.
@@ -466,6 +499,46 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
       }
     }
 
+    // Validate structured military_service frontmatter. The legacy Vital row is
+    // still allowed for display, but structured entries drive stats/GEDCOM.
+    if (fm.military_service !== undefined) {
+      if (!Array.isArray(fm.military_service)) {
+        result.errors.push(`people/${file}: military_service must be an array`);
+      } else {
+        fm.military_service.forEach((entry: unknown, index: number) => {
+          const prefix = `people/${file}: military_service[${index}]`;
+          if (entry == null || typeof entry !== 'object' || Array.isArray(entry)) {
+            result.errors.push(`${prefix} must be an object`);
+            return;
+          }
+          const svc = entry as Record<string, unknown>;
+          const branch = String(svc.branch || '').trim();
+          const conflict = String(svc.conflict || '').trim();
+          const source = String(svc.source || svc.source_id || '').trim();
+          const confidence = String(svc.confidence || '').trim();
+
+          if (!branch) result.errors.push(`${prefix}: branch is required`);
+          else if (!ALLOWED_MILITARY_BRANCHES.includes(branch)) {
+            result.errors.push(`${prefix}: branch "${branch}" is not recognized. Use one of: ${ALLOWED_MILITARY_BRANCHES.join(', ')}`);
+          }
+
+          if (conflict && !ALLOWED_MILITARY_CONFLICTS.includes(conflict)) {
+            result.errors.push(`${prefix}: conflict "${conflict}" is not recognized. Use one of: ${ALLOWED_MILITARY_CONFLICTS.join(', ')}`);
+          }
+
+          if (!source) result.errors.push(`${prefix}: source is required`);
+          else if (!sourceIdSet.has(source)) {
+            result.errors.push(`${prefix}: source "${source}" does not exist in sources/`);
+          }
+
+          if (!confidence) result.errors.push(`${prefix}: confidence is required`);
+          else if (!ALLOWED_MILITARY_CONFIDENCE.includes(confidence)) {
+            result.errors.push(`${prefix}: confidence "${confidence}" must be high, moderate, or low`);
+          }
+        });
+      }
+    }
+
     // Check wikilinks in body (Father/Mother/Spouse rows) point to existing files
     // Handles both [[path]] and [[path\|alias]] (Obsidian escaped pipe) formats
     const wikilinkPattern = /\[\[([^\]|\\]+?)(?:[\\|][^\]]*?)?\]\]/g;
@@ -506,6 +579,14 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
           `people/${file}: non-standard Vital Information field "${field}" — site build will not parse this. Use a recognized field name (see METHODOLOGY.md).`
         );
       }
+    }
+
+    const hasMilitaryVital = vitalTable.some(([f, v]) => f === 'Military' && v && !v.trim().startsWith('—'));
+    const hasStructuredMilitary = Array.isArray(fm.military_service) && fm.military_service.length > 0;
+    if (hasMilitaryVital && !hasStructuredMilitary) {
+      result.warnings.push(
+        `people/${file}: Military vital row is not mirrored in structured military_service frontmatter — branch/conflict stats and GEDCOM export will be less precise`
+      );
     }
 
     // Check that children are tagged by marriage when multiple spouses exist

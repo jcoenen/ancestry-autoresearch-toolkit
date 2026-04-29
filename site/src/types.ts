@@ -41,6 +41,7 @@ export interface Person {
   religion: string;
   occupation: string;
   military: string;
+  militaryService: MilitaryService[];
   immigration: string;
   emigration: string;
   naturalization: string;
@@ -57,6 +58,19 @@ export interface Person {
   divorce: string;
   cremation: string;
   created: string;
+}
+
+export interface MilitaryService {
+  branch: string;
+  conflict: string;
+  role: string;
+  rank: string;
+  unit: string;
+  dates: string;
+  place: string;
+  source: string;
+  confidence: string;
+  notes: string;
 }
 
 export interface MediaEntry {

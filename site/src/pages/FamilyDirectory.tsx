@@ -23,6 +23,8 @@ export default function FamilyDirectory() {
   const initialSearch = searchParams.get('search') || ''
   const sourceFilter = searchParams.get('source') || ''
   const militaryFilter = searchParams.get('military') || ''
+  const militaryBranchFilter = searchParams.get('militaryBranch') || ''
+  const militaryConflictFilter = searchParams.get('militaryConflict') || ''
   const occupationFilter = searchParams.get('occupation') || ''
   const religionFilter = searchParams.get('religion') || ''
   const immigrationFilter = searchParams.get('immigration') || ''
@@ -63,6 +65,14 @@ export default function FamilyDirectory() {
       result = result.filter(p => p.military === militaryFilter)
     }
 
+    if (militaryBranchFilter) {
+      result = result.filter(p => p.militaryService?.some(s => s.branch === militaryBranchFilter))
+    }
+
+    if (militaryConflictFilter) {
+      result = result.filter(p => p.militaryService?.some(s => s.conflict === militaryConflictFilter))
+    }
+
     if (occupationFilter) {
       result = result.filter(p => p.occupation === occupationFilter)
     }
@@ -97,6 +107,10 @@ export default function FamilyDirectory() {
         p.residence.toLowerCase().includes(q) ||
         p.occupation.toLowerCase().includes(q) ||
         p.military.toLowerCase().includes(q) ||
+        p.militaryService?.some(s =>
+          [s.branch, s.conflict, s.role, s.rank, s.unit, s.dates, s.place, s.notes]
+            .some(value => value.toLowerCase().includes(q))
+        ) ||
         p.religion.toLowerCase().includes(q) ||
         p.immigration.toLowerCase().includes(q) ||
         p.emigration.toLowerCase().includes(q) ||
@@ -106,7 +120,7 @@ export default function FamilyDirectory() {
     }
 
     return result
-  }, [people, search, familyFilter, confidenceFilter, yearFrom, yearTo, sourceFilter, militaryFilter, occupationFilter, religionFilter, immigrationFilter])
+  }, [people, search, familyFilter, confidenceFilter, yearFrom, yearTo, sourceFilter, militaryFilter, militaryBranchFilter, militaryConflictFilter, occupationFilter, religionFilter, immigrationFilter])
 
   const grouped = useMemo(() => {
     const groups: Record<string, typeof filtered> = {}
@@ -136,7 +150,7 @@ export default function FamilyDirectory() {
     })
   }
 
-  const hasAdvancedFilters = confidenceFilter.size > 0 || yearFrom || yearTo || sourceFilter || militaryFilter || occupationFilter || religionFilter || immigrationFilter
+  const hasAdvancedFilters = confidenceFilter.size > 0 || yearFrom || yearTo || sourceFilter || militaryFilter || militaryBranchFilter || militaryConflictFilter || occupationFilter || religionFilter || immigrationFilter
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">

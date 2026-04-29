@@ -30,6 +30,7 @@ interface Person {
   emigration: string;
   naturalization: string;
   military: string;
+  militaryService: MilitaryService[];
   causeOfDeath: string;
   confirmation: string;
   baptized: string;
@@ -44,6 +45,19 @@ interface Person {
   sources: string[];
   media: MediaEntry[];
   biography: string;
+}
+
+interface MilitaryService {
+  branch: string;
+  conflict: string;
+  role: string;
+  rank: string;
+  unit: string;
+  dates: string;
+  place: string;
+  source: string;
+  confidence: string;
+  notes: string;
 }
 
 interface MediaEntry {
@@ -167,6 +181,17 @@ function gedNote(level: number, text: string): string[] {
     }
   }
   return lines;
+}
+
+function militaryServiceNote(service: MilitaryService): string {
+  return [
+    service.branch ? `Branch: ${service.branch}` : '',
+    service.conflict ? `Conflict: ${service.conflict}` : '',
+    service.role ? `Role: ${service.role}` : '',
+    service.rank ? `Rank: ${service.rank}` : '',
+    service.unit ? `Unit: ${service.unit}` : '',
+    service.notes ? `Notes: ${service.notes}` : '',
+  ].filter(Boolean).join('; ');
 }
 
 /** Map source type string to GEDCOM-friendly media type */
@@ -442,9 +467,25 @@ function main() {
       lines.push(gedLine(2, 'NOTE', p.naturalization));
     }
 
-    // Military
-    if (p.military) {
-      lines.push(gedLine(1, '_MILT', p.military));
+    // Military service. GEDCOM 5.5.1 has no standard branch/conflict fields, so export
+    // this as a generic event with TYPE and preserve structured details in NOTE.
+    if (p.militaryService?.length) {
+      for (const service of p.militaryService) {
+        lines.push(gedLine(1, 'EVEN'));
+        lines.push(gedLine(2, 'TYPE', 'Military Service'));
+        const serviceDate = toGedcomDate(service.dates);
+        if (serviceDate) lines.push(gedLine(2, 'DATE', serviceDate));
+        if (service.place) lines.push(gedLine(2, 'PLAC', service.place));
+        const note = militaryServiceNote(service);
+        if (note) lines.push(...gedNote(2, note));
+        if (service.source && sourceIdSet.has(service.source)) {
+          lines.push(gedLine(2, 'SOUR', `@${service.source}@`));
+        }
+      }
+    } else if (p.military) {
+      lines.push(gedLine(1, 'EVEN'));
+      lines.push(gedLine(2, 'TYPE', 'Military Service'));
+      lines.push(gedLine(2, 'NOTE', p.military));
     }
 
     // Source references
