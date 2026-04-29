@@ -183,6 +183,21 @@ function splitVitalList(val: string | undefined): string[] {
   return val.split(',').map(s => s.trim()).filter(Boolean)
 }
 
+function isBlankVitalValue(val: string | undefined): boolean {
+  if (!val) return true;
+  const trimmed = val.trim();
+  return trimmed === '' || trimmed === '—' || trimmed === '-' || trimmed.toLowerCase() === 'unknown';
+}
+
+function inferPlaceFromDatedVital(val: string | undefined): string {
+  if (isBlankVitalValue(val)) return '';
+  const text = val!.trim();
+  const datePlace = text.match(
+    /^(?:c\.?|ca\.?|abt\.?|about|~)?\s*(?:\d{4}|(?:\d{1,2}\s+)?[A-Za-z]+\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+[A-Za-z]+\.?\s+\d{4})(?:\s*\([^)]*\))?\s*,\s*(.+)$/i,
+  );
+  return datePlace ? datePlace[1].trim() : '';
+}
+
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String) : [];
 }
@@ -363,6 +378,12 @@ async function main() {
     const vitals = parseVitalTable(content);
     const biography = extractBiography(content);
     const birthDateAnalysis = extractSection(content, 'Birth Date Analysis');
+    const birthplace = isBlankVitalValue(vitals['Birthplace'])
+      ? inferPlaceFromDatedVital(vitals['Born'])
+      : vitals['Birthplace'];
+    const deathPlace = isBlankVitalValue(vitals['Death Place'])
+      ? inferPlaceFromDatedVital(vitals['Died'])
+      : vitals['Death Place'];
 
     // Read relationships from YAML frontmatter (structured, no parsing)
     const fatherId = fm.father ? String(fm.father) : '';
@@ -421,8 +442,8 @@ async function main() {
       children,
       biography: isPrivate ? '' : biography,
       birthDateAnalysis: isPrivate ? '' : birthDateAnalysis,
-      birthplace: isPrivate ? '' : (vitals['Birthplace'] || ''),
-      deathPlace: isPrivate ? '' : (vitals['Death Place'] || ''),
+      birthplace: isPrivate ? '' : birthplace,
+      deathPlace: isPrivate ? '' : deathPlace,
       burial: isPrivate ? '' : (vitals['Burial'] || ''),
       religion: isPrivate ? '' : (vitals['Religion'] || ''),
       occupation: isPrivate ? '' : (vitals['Occupation'] || ''),

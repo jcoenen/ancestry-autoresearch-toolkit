@@ -27,6 +27,12 @@ function century(year: number): string {
   return `${Math.floor((year - 1) / 100) + 1}th`
 }
 
+function hasKnownValue(value: string | undefined | null): boolean {
+  if (!value) return false
+  const v = value.trim()
+  return v !== '' && v !== '—' && v !== '-' && v.toLowerCase() !== 'unknown'
+}
+
 /* ── Bar chart component ─────────────────────────────────────── */
 
 function BarChart({ items, max: maxOverride }: { items: { label: string; value: number; link?: string }[]; max?: number }) {
@@ -215,10 +221,21 @@ export default function StatsPage() {
       .map(([t, count]) => ({ label: t, value: count }))
 
     // --- Immigration ---
+    const sourceMap = new Map(sources.map(s => [s.id, s]))
     const immCounts = new Map<string, number>()
     for (const p of pub) {
-      if (p.immigration && p.immigration !== '—') {
-        const imm = p.immigration.trim()
+      let imm = ''
+      if (hasKnownValue(p.immigration)) imm = p.immigration.trim()
+      else if (hasKnownValue(p.emigration)) imm = `Emigration: ${p.emigration.trim()}`
+      else if (hasKnownValue(p.naturalization)) imm = `Naturalization: ${p.naturalization.trim()}`
+      else {
+        const migrationSource = p.sources
+          .map(id => sourceMap.get(id))
+          .find(s => s && ['immigration', 'ship_manifest', 'naturalization'].includes(s.type))
+        if (migrationSource) imm = migrationSource.title || migrationSource.id
+      }
+
+      if (imm) {
         immCounts.set(imm, (immCounts.get(imm) || 0) + 1)
       }
     }
