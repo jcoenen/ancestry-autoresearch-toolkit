@@ -523,7 +523,7 @@ export default function StatsPage() {
       {/* Occupations */}
       {stats.topOccupations.length > 0 && (
         <Section title="Occupations">
-          <BarChart items={stats.topOccupations.map(([occ, count]) => ({ label: occ, value: count, link: `/people?search=${encodeURIComponent(occ)}` }))} />
+          <BarChart items={stats.topOccupations.map(([occ, count]) => ({ label: occ, value: count, link: `/people?occupation=${encodeURIComponent(occ)}` }))} />
         </Section>
       )}
 

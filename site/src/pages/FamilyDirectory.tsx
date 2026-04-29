@@ -5,6 +5,19 @@ import FamilyFilterDropdown from '../components/FamilyFilterDropdown'
 
 const CONFIDENCE_ORDER = ['high', 'moderate', 'medium', 'low', 'stub', 'speculative']
 
+function normalizeOccupation(value: string): string {
+  const raw = value.toLowerCase()
+  if (raw.includes('farmer') || raw.includes('farm ')) return 'Agriculture / Farming'
+  if (raw.includes('military') || raw.includes('army') || raw.includes('wwii') || raw.includes('revolutionary war') || raw.includes('captain')) return 'Military'
+  if (raw.includes('teacher') || raw.includes('school') || raw.includes('education')) return 'Education'
+  if (raw.includes('church') || raw.includes('sister') || raw.includes('parish')) return 'Religious service'
+  if (raw.includes('factory') || raw.includes('wire works') || raw.includes('construction') || raw.includes('service') || raw.includes('elevator')) return 'Trades / Manufacturing'
+  if (raw.includes('oil') || raw.includes('manager') || raw.includes('owner') || raw.includes('restaurant') || raw.includes('agent')) return 'Business / Management'
+  if (raw.includes('driver') || raw.includes('route')) return 'Transportation'
+  if (raw.includes('social services') || raw.includes('administrative')) return 'Office / Public service'
+  return 'Other specific occupations'
+}
+
 function confidencePillStyle(confidence: string, active: boolean): string {
   if (!active) return 'border border-stone-200 text-stone-400 bg-white'
   switch (confidence) {
@@ -74,7 +87,10 @@ export default function FamilyDirectory() {
     }
 
     if (occupationFilter) {
-      result = result.filter(p => p.occupation === occupationFilter)
+      result = result.filter(p =>
+        p.occupation === occupationFilter ||
+        (p.occupation && p.occupation !== '—' && normalizeOccupation(p.occupation) === occupationFilter)
+      )
     }
 
     if (religionFilter) {

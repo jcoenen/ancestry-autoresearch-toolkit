@@ -4,6 +4,20 @@ import { usePeople, useGeocodedLocations, formatYear, MEDIA_BASE } from '../useD
 import FamilyFilterDropdown from '../components/FamilyFilterDropdown'
 import type { Person } from '../types'
 
+function isKnownCemetery(value: string | undefined): boolean {
+  if (!value) return false
+  const normalized = value.trim().toLowerCase()
+  if (!normalized || normalized === '—') return false
+  return !(
+    normalized === 'unknown' ||
+    normalized === 'details unknown' ||
+    normalized === 'burial details unknown' ||
+    normalized.startsWith('unknown ') ||
+    normalized.startsWith('cremated at ') ||
+    normalized.startsWith('presumed buried ')
+  )
+}
+
 export default function CemeteryBrowserPage() {
   const people = usePeople()
   const geocoded = useGeocodedLocations()
@@ -17,7 +31,7 @@ export default function CemeteryBrowserPage() {
   }, [people])
 
   const filteredPeople = useMemo(() => {
-    let result = people.filter(p => p.burial && !p.privacy)
+    let result = people.filter(p => isKnownCemetery(p.burial) && !p.privacy)
     if (familyFilter.size > 0) {
       result = result.filter(p => familyFilter.has(p.family))
     }
