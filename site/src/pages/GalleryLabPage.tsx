@@ -236,8 +236,8 @@ export default function GalleryLabPage() {
   const stats = [
     { label: 'portrait people', value: portraitCards.length, view: 'portraits' as GalleryView },
     { label: 'couple images', value: coupleCards.length, view: 'couples' as GalleryView },
+    { label: 'gravestones', value: gravestoneCards.length, view: 'gravestones' as GalleryView },
     { label: 'documents', value: documentCards.length, view: 'documents' as GalleryView },
-    { label: 'missing portraits', value: missingPortraits.length, view: 'missing' as GalleryView },
   ]
 
   return (
