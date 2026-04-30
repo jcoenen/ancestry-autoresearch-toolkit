@@ -8,6 +8,7 @@ import PersonPage from './pages/PersonPage'
 import SourcesPage from './pages/SourcesPage'
 import SourceDetailPage from './pages/SourceDetailPage'
 import MediaGallery from './pages/MediaGallery'
+import GalleryLabPage from './pages/GalleryLabPage'
 import ReportPage from './pages/ReportPage'
 import ThemeMockups from './pages/ThemeMockups'
 import TranslationPage from './pages/TranslationPage'
@@ -42,7 +43,9 @@ function App() {
           <Route path="/people/:slug" element={<ErrorBoundary fallbackTitle="Person page failed to render"><PersonPage /></ErrorBoundary>} />
           <Route path="/sources" element={<SourcesPage />} />
           <Route path="/sources/:slug" element={<SourceDetailPage />} />
-          <Route path="/gallery" element={<MediaGallery />} />
+          <Route path="/gallery" element={<GalleryLabPage />} />
+          <Route path="/gallery-classic" element={<MediaGallery />} />
+          <Route path="/gallery-lab" element={<GalleryLabPage />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/report" element={<ReportPage />} />
           <Route path="/translations/:slug" element={<TranslationPage />} />
