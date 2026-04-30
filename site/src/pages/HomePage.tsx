@@ -10,13 +10,33 @@ export default function HomePage() {
   const people = usePeople()
   const config = useSiteConfig()
 
-  const todayEvents = useMemo(() => {
+  const onThisDayPreview = useMemo(() => {
     const now = new Date()
-    const m = now.getMonth() + 1
-    const d = now.getDate()
-    return extractEvents(people)
-      .filter(e => e.month === m && e.day === d)
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const todayMonth = now.getMonth() + 1
+    const todayDay = now.getDate()
+    const allEvents = extractEvents(people)
+    const todayEvents = allEvents
+      .filter(e => e.month === todayMonth && e.day === todayDay)
       .sort((a, b) => a.year - b.year)
+
+    if (todayEvents.length > 0) {
+      return { events: todayEvents, mode: 'today' as const }
+    }
+
+    const upcomingEvents = allEvents
+      .map(event => {
+        const eventDate = new Date(now.getFullYear(), event.month - 1, event.day)
+        if (eventDate < today) eventDate.setFullYear(eventDate.getFullYear() + 1)
+        const daysAway = Math.round((eventDate.getTime() - today.getTime()) / 86400000)
+        return { event, daysAway }
+      })
+      .filter(({ daysAway }) => daysAway > 0 && daysAway <= 6)
+      .sort((a, b) => a.daysAway - b.daysAway || a.event.year - b.event.year)
+      .slice(0, 5)
+      .map(({ event }) => event)
+
+    return { events: upcomingEvents, mode: 'week' as const }
   }, [people])
 
   const extendedLine = useMemo(() => {
@@ -96,7 +116,7 @@ export default function HomePage() {
       )}
 
       {/* On This Day */}
-      {todayEvents.length > 0 && (
+      {onThisDayPreview.events.length > 0 && (
         <section className="pb-16">
           <div className="flex items-baseline justify-between mb-4">
             <h2 className="text-2xl font-semibold text-stone-800">On This Day</h2>
@@ -105,10 +125,12 @@ export default function HomePage() {
             </Link>
           </div>
           <p className="text-stone-500 text-sm mb-4">
-            {MONTH_NAMES[new Date().getMonth() + 1]} {new Date().getDate()} in family history
+            {onThisDayPreview.mode === 'today'
+              ? `${MONTH_NAMES[new Date().getMonth() + 1]} ${new Date().getDate()} in family history`
+              : `No recorded events today; next up this week`}
           </p>
           <div className="space-y-2">
-            {todayEvents.map(event => {
+            {onThisDayPreview.events.map(event => {
               const colors = EVENT_COLORS[event.type]
               const yearsAgo = new Date().getFullYear() - event.year
               return (
@@ -124,6 +146,11 @@ export default function HomePage() {
                     <span className={`ml-2 text-xs ${colors.text} opacity-70`}>
                       {EVENT_LABELS[event.type]}, {event.year} ({yearsAgo} year{yearsAgo !== 1 ? 's' : ''} ago)
                     </span>
+                    {onThisDayPreview.mode === 'week' && (
+                      <span className={`ml-2 text-xs ${colors.text} opacity-70`}>
+                        {MONTH_NAMES[event.month]} {event.day}
+                      </span>
+                    )}
                   </div>
                   {event.location && (
                     <span className="text-xs text-stone-500 hidden sm:block shrink-0">{event.location}</span>
