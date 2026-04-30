@@ -91,6 +91,68 @@ const ALLOWED_OCCUPATION_CATEGORIES = [
   'Unknown',
 ];
 const ALLOWED_OCCUPATION_CONFIDENCE = ['high', 'moderate', 'low'];
+const SOURCE_TYPE_TO_PREFIX: Record<string, string> = {
+  obituary: 'OBIT',
+  cemetery_memorial: 'CEM',
+  church_record: 'CHR',
+  secondary: 'SEC',
+  ship_manifest: 'IMM',
+  military: 'MIL',
+  census: 'CENS',
+  family_knowledge: 'NOTE',
+  certificate: 'CERT',
+};
+const SOURCE_TYPE_TO_FOLDER: Record<string, string> = {
+  obituary: 'obituaries',
+  cemetery_memorial: 'cemetery',
+  church_record: 'church',
+  secondary: 'secondary',
+  ship_manifest: 'immigration',
+  military: 'military',
+  census: 'census',
+  family_knowledge: 'notes',
+  certificate: 'certificates',
+};
+
+function firstYear(value: unknown): number | null {
+  const match = String(value || '').match(/(?:abt\.?|about|circa|ca\.?|before|after|between|from|to)?\s*(\d{4})/i);
+  return match ? Number(match[1]) : null;
+}
+
+function normalizeNameForComparison(value: unknown): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/"[^"]*"/g, ' ')
+    .replace(/\b(jr|sr|ii|iii|iv)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function documentsSameNameReuse(text: string): boolean {
+  return /\b(not the same|different people|same name|name reused|second son named|given the same name|reusing a deceased child'?s name)\b/i.test(text);
+}
+
+function mediaKindFromPath(path: string): 'portrait' | 'gravestone' | 'document' | 'newspaper' | 'group' | 'misc' | 'unknown' {
+  if (path.startsWith('portraits/')) return 'portrait';
+  if (path.startsWith('gravestones/')) return 'gravestone';
+  if (path.startsWith('documents/')) return 'document';
+  if (path.startsWith('newspapers/')) return 'newspaper';
+  if (path.startsWith('group/')) return 'group';
+  if (path.startsWith('misc/')) return 'misc';
+  return 'unknown';
+}
+
+function mediaKindFromDescription(description: string): 'portrait' | 'gravestone' | 'document' | 'newspaper' | 'group' | 'misc' | 'unknown' {
+  const text = description.toLowerCase();
+  if (/\b(newspaper obituary|obituary clipping|obituary body|obituary continuation|obituary header|obituary p\d|green bay press|post-crescent|press-gazette|oshkosh northwestern|daily herald|death notice)\b/.test(text)) return 'newspaper';
+  if (/\b(gravestone|headstone|grave marker|mausoleum|family plot|plot view|tombstone)\b/.test(text)) return 'gravestone';
+  if (/\b(couple photo|family photo|group photo|wedding photo|wedding portrait|family portrait)\b/.test(text)) return 'group';
+  if (/\b(portrait photo|studio portrait|portrait|person photo|profile image)\b/.test(text)) return 'portrait';
+  if (/\b(death certificate|birth certificate|marriage record|certificate|census|ship manifest|register scan|document|paper|record scan)\b/.test(text)) return 'document';
+  if (/\b(obituary|newspaper|clipping|article)\b/.test(text)) return 'newspaper';
+  return 'unknown';
+}
 
 /**
  * Validates a single media ref path against METHODOLOGY.md rules.
@@ -270,6 +332,12 @@ function validateSourceFiles(sourceFiles: string[]): {
           `sources/${file}: source_id "${fm.source_id}" does not match pattern SRC-{TYPE}-{NNN}`
         );
       }
+      const expectedPrefix = SOURCE_TYPE_TO_PREFIX[String(fm.source_type || '')];
+      if (expectedPrefix && !String(fm.source_id).startsWith(`SRC-${expectedPrefix}-`)) {
+        result.warnings.push(
+          `sources/${file}: source_id "${fm.source_id}" does not match source_type "${fm.source_type}" (expected SRC-${expectedPrefix}-###)`
+        );
+      }
 
       // Check uniqueness
       if (sourceIds.has(fm.source_id)) {
@@ -287,6 +355,13 @@ function validateSourceFiles(sourceFiles: string[]): {
       result.errors.push(
         `sources/${file}: source_type "${fm.source_type}" is not in allowed values: ${ALLOWED_SOURCE_TYPES.join(', ')}`
       );
+    } else if (fm.source_type) {
+      const expectedFolder = SOURCE_TYPE_TO_FOLDER[String(fm.source_type)];
+      if (expectedFolder && !file.startsWith(`${expectedFolder}/`)) {
+        result.warnings.push(
+          `sources/${file}: source_type "${fm.source_type}" usually belongs in sources/${expectedFolder}/`
+        );
+      }
     }
 
     // Check reliability is allowed
@@ -324,6 +399,15 @@ function validateSourceFiles(sourceFiles: string[]): {
       }
     }
 
+    if (Array.isArray(fm.subject_person_ids)) {
+      const personIdSet = new Set(Array.isArray(fm.person_ids) ? fm.person_ids.map((p: unknown) => String(p)) : []);
+      for (const subjectId of fm.subject_person_ids.map((p: unknown) => String(p))) {
+        if (!personIdSet.has(subjectId)) {
+          result.errors.push(`sources/${file}: subject_person_ids entry "${subjectId}" must also be present in person_ids`);
+        }
+      }
+    }
+
     // Check body sections for obituaries (Full Text required with actual content)
     if (fm.source_type === 'obituary') {
       if (!sourceSubjectPersonIds.has(`sources/${file}`)) {
@@ -331,14 +415,6 @@ function validateSourceFiles(sourceFiles: string[]): {
       }
       if (!Array.isArray(fm.person_ids)) {
         result.errors.push(`sources/${file}: obituary source missing person_ids - subject_person_ids must also be included in person_ids`);
-      }
-      if (Array.isArray(fm.subject_person_ids) && Array.isArray(fm.person_ids)) {
-        const personIdSet = new Set(fm.person_ids.map((p: unknown) => String(p)));
-        for (const subjectId of fm.subject_person_ids.map((p: unknown) => String(p))) {
-          if (!personIdSet.has(subjectId)) {
-            result.errors.push(`sources/${file}: subject_person_ids entry "${subjectId}" must also be present in person_ids`);
-          }
-        }
       }
       if (!content.includes('## Full Text')) {
         result.errors.push(`sources/${file}: missing ## Full Text section`);
@@ -414,17 +490,21 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
   result: ValidationResult;
   checked: number;
   personSourceRefs: Set<string>;
+  personSourcesById: Map<string, Set<string>>;
   gedcomIds: Map<string, string>;
   relationships: PersonRelationships[];
   scopeRelationships: ScopeRelationship[];
   personMediaRefs: Map<string, string[]>;
+  personFactsById: Map<string, PersonFactInfo>;
 } {
   const result: ValidationResult = { errors: [], warnings: [] };
   const personSourceRefs = new Set<string>();
+  const personSourcesById = new Map<string, Set<string>>();
   const gedcomIds = new Map<string, string>(); // gedcom_id -> file
   const relationships: PersonRelationships[] = [];
   const scopeRelationships: ScopeRelationship[] = [];
   const personMediaRefs = new Map<string, string[]>(); // file -> media ref paths
+  const personFactsById = new Map<string, PersonFactInfo>();
   const personSlugEntries: Array<{ baseSlug: string; finalSlug: string; file: string; id: string; born: string }> = [];
   let checked = 0;
 
@@ -508,7 +588,13 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
     // Check that every source_id references an existing source file
     if (Array.isArray(fm.sources)) {
       for (const srcId of fm.sources) {
-        personSourceRefs.add(srcId);
+        const sourceId = String(srcId);
+        personSourceRefs.add(sourceId);
+        if (fm.gedcom_id) {
+          const personId = String(fm.gedcom_id);
+          if (!personSourcesById.has(personId)) personSourcesById.set(personId, new Set<string>());
+          personSourcesById.get(personId)!.add(sourceId);
+        }
         if (!sourceIdSet.has(srcId)) {
           result.errors.push(
             `people/${file}: references source "${srcId}" which does not exist in sources/`
@@ -646,6 +732,19 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
           `people/${file}: non-standard Vital Information field "${field}" — site build will not parse this. Use a recognized field name (see METHODOLOGY.md).`
         );
       }
+    }
+
+    const burialValue = vitalTable.find(([f]) => f === 'Burial')?.[1] || '';
+    const burialPlotValue = vitalTable.find(([f]) => f === 'Burial Plot')?.[1] || '';
+    if (burialValue && /\b(section|sec\.?|lot|plot|grave|gravesite|block|row)\b/i.test(burialValue)) {
+      result.warnings.push(
+        `people/${file}: Burial appears to include plot/section/lot details — keep cemetery name in Burial and move plot details to Burial Plot or Burial Notes`
+      );
+    }
+    if (burialPlotValue && /\b(cemetery|memorial park|mausoleum|churchyard|graveyard)\b/i.test(burialPlotValue)) {
+      result.warnings.push(
+        `people/${file}: Burial Plot appears to include a cemetery name — keep cemetery name in Burial and plot/section/lot only in Burial Plot`
+      );
     }
 
     const hasMilitaryVital = vitalTable.some(([f, v]) => f === 'Military' && v && !v.trim().startsWith('—'));
@@ -801,6 +900,22 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
       id: fm.gedcom_id ? String(fm.gedcom_id) : '',
       born: bornYear,
     });
+
+    if (fm.gedcom_id) {
+      personFactsById.set(String(fm.gedcom_id), {
+        file,
+        name: String(fm.name || ''),
+        gender: String(fm.gender || ''),
+        family: String(fm.family || ''),
+        born: typeof fm.born === 'string' ? fm.born : '',
+        died: typeof fm.died === 'string' ? fm.died : '',
+        burial: burialValue,
+        father: fm.father ? String(fm.father) : '',
+        mother: fm.mother ? String(fm.mother) : '',
+        spouses: (fm.spouses || []) as Array<{ id?: string; married?: unknown }>,
+        notesText: content,
+      });
+    }
   }
 
   const baseCounts = new Map<string, number>();
@@ -828,7 +943,7 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
     }
   }
 
-  return { result, checked, personSourceRefs, gedcomIds, relationships, scopeRelationships, personMediaRefs };
+  return { result, checked, personSourceRefs, personSourcesById, gedcomIds, relationships, scopeRelationships, personMediaRefs, personFactsById };
 }
 
 interface MediaEntryInfo {
@@ -838,14 +953,38 @@ interface MediaEntryInfo {
   line: number;
 }
 
-function validateMediaIndex(): { result: ValidationResult; entryCount: number; newsAndDocEntries: MediaEntryInfo[]; indexPaths: Set<string> } {
+interface PersonFactInfo {
+  file: string;
+  name: string;
+  gender: string;
+  family: string;
+  born: string;
+  died: string;
+  burial: string;
+  father: string;
+  mother: string;
+  spouses: Array<{ id?: string; married?: unknown }>;
+  notesText: string;
+}
+
+interface MediaIndexEntryInfo {
+  localPath: string;
+  person: string;
+  description: string;
+  line: number;
+  pathKind: ReturnType<typeof mediaKindFromPath>;
+  descriptionKind: ReturnType<typeof mediaKindFromDescription>;
+}
+
+function validateMediaIndex(): { result: ValidationResult; entryCount: number; newsAndDocEntries: MediaEntryInfo[]; indexPaths: Set<string>; mediaInfoByPath: Map<string, MediaIndexEntryInfo> } {
   const result: ValidationResult = { errors: [], warnings: [] };
   const newsAndDocEntries: MediaEntryInfo[] = [];
   const indexPaths = new Set<string>();
+  const mediaInfoByPath = new Map<string, MediaIndexEntryInfo>();
 
   if (!existsSync(MEDIA_INDEX)) {
     result.warnings.push('_Media_Index.md does not exist — skipping media validation');
-    return { result, entryCount: 0, newsAndDocEntries, indexPaths };
+    return { result, entryCount: 0, newsAndDocEntries, indexPaths, mediaInfoByPath };
   }
 
   const content = readFileSync(MEDIA_INDEX, 'utf-8');
@@ -922,16 +1061,31 @@ function validateMediaIndex(): { result: ValidationResult; entryCount: number; n
       result.errors.push(`_Media_Index.md line ${i + 1}: local media file "${localPath}" does not exist`);
     }
 
-    const description = parts[4].toLowerCase();
-    const looksLikeCemeteryImage = /\b(gravestone|headstone|grave marker|mausoleum|cemetery|family plot|plot view)\b/.test(description);
-    const looksLikeDocumentImage = /\b(obituary|newspaper|death certificate|birth certificate|marriage record|census|ship manifest|register scan)\b/.test(description);
-    const looksLikePortraitImage = /\b(portrait photo|studio portrait|wedding portrait|person photo)\b/.test(description);
-
-    if ((localPath.startsWith('portraits/') || localPath.startsWith('group/')) && looksLikeCemeteryImage) {
-      result.warnings.push(`_Media_Index.md line ${i + 1}: "${localPath}" is in a portrait/group folder but description looks like cemetery media`);
+    const description = parts[4];
+    const pathKind = mediaKindFromPath(localPath);
+    let descriptionKind = mediaKindFromDescription(description);
+    if (pathKind === 'portrait' && /\b(portrait|person photo|profile image|studio)\b/i.test(description)) {
+      descriptionKind = 'portrait';
     }
-    if (localPath.startsWith('gravestones/') && (looksLikeDocumentImage || looksLikePortraitImage)) {
-      result.warnings.push(`_Media_Index.md line ${i + 1}: "${localPath}" is in gravestones/ but description looks like a document, newspaper, or portrait`);
+    if (pathKind === 'newspaper' && /\b(newspaper|obituary|clipping|press|gazette|post-crescent|northwestern)\b/i.test(description)) {
+      descriptionKind = 'newspaper';
+    }
+    mediaInfoByPath.set(localPath, {
+      localPath,
+      person: parts[1],
+      description,
+      line: i + 1,
+      pathKind,
+      descriptionKind,
+    });
+    if (descriptionKind !== 'unknown' && pathKind !== 'unknown' && pathKind !== 'misc') {
+      const compatible =
+        pathKind === descriptionKind ||
+        (pathKind === 'group' && (descriptionKind === 'group' || descriptionKind === 'portrait')) ||
+        (pathKind === 'portrait' && descriptionKind === 'group');
+      if (!compatible) {
+        result.warnings.push(`_Media_Index.md line ${i + 1}: "${localPath}" is in ${pathKind} media but description looks like ${descriptionKind} media`);
+      }
     }
 
     // Track NEWS and DOC entries for processing check
@@ -942,7 +1096,7 @@ function validateMediaIndex(): { result: ValidationResult; entryCount: number; n
     }
   }
 
-  return { result, entryCount, newsAndDocEntries, indexPaths };
+  return { result, entryCount, newsAndDocEntries, indexPaths, mediaInfoByPath };
 }
 
 
@@ -1009,7 +1163,9 @@ async function main() {
   let relationships: PersonRelationships[] = [];
   let scopeRelationships: ScopeRelationship[] = [];
   let personSourceRefs = new Set<string>();
+  let personSourcesById = new Map<string, Set<string>>();
   let personMediaRefs = new Map<string, string[]>();
+  let personFactsById = new Map<string, PersonFactInfo>();
   const allGedcomIds = new Set<string>();
 
   if (existsSync(PEOPLE_DIR)) {
@@ -1025,7 +1181,9 @@ async function main() {
     relationships = pplValidation.relationships;
     scopeRelationships = pplValidation.scopeRelationships;
     personSourceRefs = pplValidation.personSourceRefs;
+    personSourcesById = pplValidation.personSourcesById;
     personMediaRefs = pplValidation.personMediaRefs;
+    personFactsById = pplValidation.personFactsById;
 
     const pplErrors = pplValidation.result.errors.length;
     const pplWarnings = pplValidation.result.warnings.length;
@@ -1057,7 +1215,7 @@ async function main() {
   }
 
   // ── Media Index ──
-  const { result: mediaResult, entryCount: mediaEntries, newsAndDocEntries, indexPaths } = validateMediaIndex();
+  const { result: mediaResult, entryCount: mediaEntries, newsAndDocEntries, indexPaths, mediaInfoByPath } = validateMediaIndex();
   const mediaErrors = mediaResult.errors.length;
   const mediaWarnings = mediaResult.warnings.length;
   totalErrors += mediaErrors;
@@ -1152,6 +1310,20 @@ async function main() {
     for (const indexPath of indexPaths) {
       if (!indexClaimedByPeople.has(indexPath)) {
         mediaLinkWarnings.push(`_Media_Index.md: "${indexPath}" is not referenced in any person file media: array — image is registered but will not appear on any person's page`);
+      }
+    }
+
+    // 5. The first person media item drives the person header image. If a portrait
+    // exists later in the list, warn when the hero would be a document/stone.
+    for (const [file, refs] of personMediaRefs) {
+      if (refs.length < 2) continue;
+      const firstKind = mediaInfoByPath.get(refs[0])?.pathKind ?? mediaKindFromPath(refs[0]);
+      const hasPortrait = refs.slice(1).some(ref => {
+        const kind = mediaInfoByPath.get(ref)?.pathKind ?? mediaKindFromPath(ref);
+        return kind === 'portrait' || kind === 'group';
+      });
+      if (hasPortrait && firstKind !== 'portrait' && firstKind !== 'group') {
+        mediaLinkWarnings.push(`people/${file}: first media ref "${refs[0]}" is ${firstKind}, but a portrait/group image exists later — reorder media so the profile header uses the person photo`);
       }
     }
 
@@ -1314,6 +1486,152 @@ async function main() {
       }
     } else {
       console.log(`  ! ${sourcePersonIdWarnings.length} warnings (run with --verbose to see)`);
+    }
+  }
+
+  // ── Source/Person Reciprocity ──
+  // If a source declares person_ids, each listed person should cite that source.
+  // If a person cites a source that has person_ids, the person should be listed there.
+  {
+    const reciprocityWarnings: string[] = [];
+    const sourceFileToId = new Map<string, string>();
+    for (const [sourceId, sourceFile] of sourceIds) sourceFileToId.set(sourceFile, sourceId);
+
+    for (const [sourceFile, ids] of sourcePersonIds) {
+      const sourceId = sourceFileToId.get(sourceFile);
+      if (!sourceId) continue;
+      for (const personId of ids) {
+        if (!allGedcomIds.has(personId)) continue;
+        const personSources = personSourcesById.get(personId) ?? new Set<string>();
+        if (!personSources.has(sourceId)) {
+          const person = personFactsById.get(personId);
+          reciprocityWarnings.push(`${sourceFile}: lists ${personId}${person ? ` (${person.name})` : ''} in person_ids, but that person file does not cite ${sourceId}`);
+        }
+      }
+    }
+
+    for (const [personId, citedSources] of personSourcesById) {
+      const person = personFactsById.get(personId);
+      for (const sourceId of citedSources) {
+        const sourceFile = sourceIds.get(sourceId);
+        if (!sourceFile) continue;
+        const ids = sourcePersonIds.get(sourceFile);
+        if (ids && !ids.includes(personId)) {
+          reciprocityWarnings.push(`people/${person?.file ?? personId}: cites ${sourceId}, but ${sourceFile} does not include ${personId} in person_ids`);
+        }
+      }
+    }
+
+    totalWarnings += reciprocityWarnings.length;
+    console.log(`\nSource/Person Reciprocity: ${sourcePersonIds.size} source person_id lists checked`);
+    if (reciprocityWarnings.length === 0) {
+      console.log(`  \u2713 All source person_ids and person source citations are reciprocal`);
+    } else if (verbose) {
+      console.log(`  ! ${reciprocityWarnings.length} warnings:`);
+      for (const w of reciprocityWarnings) console.log(`    ${w}`);
+    } else {
+      console.log(`  ! ${reciprocityWarnings.length} warnings (run with --verbose to see)`);
+    }
+  }
+
+  // ── Chronology Sanity ──
+  {
+    const chronologyWarnings: string[] = [];
+    for (const [personId, person] of personFactsById) {
+      const birthYear = firstYear(person.born);
+      const deathYear = firstYear(person.died);
+      const burialYear = firstYear(person.burial);
+
+      if (birthYear && deathYear && deathYear < birthYear) {
+        chronologyWarnings.push(`people/${person.file}: died year ${deathYear} is before born year ${birthYear}`);
+      }
+      if (deathYear && burialYear && burialYear < deathYear) {
+        chronologyWarnings.push(`people/${person.file}: burial year ${burialYear} is before died year ${deathYear}`);
+      }
+
+      for (const parentId of [person.father, person.mother].filter(Boolean)) {
+        const parent = personFactsById.get(parentId);
+        if (!parent || !birthYear) continue;
+        const parentBirthYear = firstYear(parent.born);
+        if (!parentBirthYear) continue;
+        const age = birthYear - parentBirthYear;
+        if (age < 0) {
+          chronologyWarnings.push(`people/${person.file}: born ${birthYear}, before parent ${parentId} (${parent.name}) born ${parentBirthYear}`);
+        } else if (age < 12) {
+          chronologyWarnings.push(`people/${person.file}: parent ${parentId} (${parent.name}) appears only ${age} at this child's birth`);
+        } else if (parent.gender === 'F' && age > 60) {
+          chronologyWarnings.push(`people/${person.file}: mother ${parentId} (${parent.name}) appears ${age} at this child's birth`);
+        } else if (parent.gender === 'M' && age > 90) {
+          chronologyWarnings.push(`people/${person.file}: father ${parentId} (${parent.name}) appears ${age} at this child's birth`);
+        }
+      }
+
+      for (const spouse of person.spouses) {
+        const marriedYear = firstYear(spouse.married);
+        if (!marriedYear) continue;
+        if (birthYear && marriedYear < birthYear) {
+          chronologyWarnings.push(`people/${person.file}: marriage year ${marriedYear} is before birth year ${birthYear}`);
+        }
+        if (deathYear && marriedYear > deathYear) {
+          chronologyWarnings.push(`people/${person.file}: marriage year ${marriedYear} is after death year ${deathYear}`);
+        }
+      }
+    }
+
+    totalWarnings += chronologyWarnings.length;
+    console.log(`\nChronology Sanity: ${personFactsById.size} people checked`);
+    if (chronologyWarnings.length === 0) {
+      console.log(`  \u2713 No obvious date chronology issues found`);
+    } else if (verbose) {
+      console.log(`  ! ${chronologyWarnings.length} warnings:`);
+      for (const w of chronologyWarnings) console.log(`    ${w}`);
+    } else {
+      console.log(`  ! ${chronologyWarnings.length} warnings (run with --verbose to see)`);
+    }
+  }
+
+  // ── Duplicate Person Suspicion ──
+  {
+    const duplicateWarnings: string[] = [];
+    const exactNameAndBirth = new Map<string, Array<[string, PersonFactInfo]>>();
+    const exactParentsAndName = new Map<string, Array<[string, PersonFactInfo]>>();
+
+    for (const [personId, person] of personFactsById) {
+      const name = normalizeNameForComparison(person.name);
+      if (!name) continue;
+      const birthYear = firstYear(person.born);
+      const deathYear = firstYear(person.died);
+      if (birthYear) {
+        const key = `${name}|b:${birthYear}|d:${deathYear ?? ''}`;
+        exactNameAndBirth.set(key, [...(exactNameAndBirth.get(key) ?? []), [personId, person]]);
+      }
+      if (person.father || person.mother) {
+        const key = `${name}|f:${person.father}|m:${person.mother}`;
+        exactParentsAndName.set(key, [...(exactParentsAndName.get(key) ?? []), [personId, person]]);
+      }
+    }
+
+    const seenGroups = new Set<string>();
+    for (const groups of [exactNameAndBirth, exactParentsAndName]) {
+      for (const [, matches] of groups) {
+        if (matches.length < 2) continue;
+        const groupKey = matches.map(([id]) => id).sort().join('|');
+        if (seenGroups.has(groupKey)) continue;
+        if (matches.some(([, p]) => documentsSameNameReuse(p.notesText))) continue;
+        seenGroups.add(groupKey);
+        duplicateWarnings.push(`Possible duplicate people: ${matches.map(([id, p]) => `${id} ${p.name} (${p.born || '?'}-${p.died || '?'}) in people/${p.file}`).join(' | ')}`);
+      }
+    }
+
+    totalWarnings += duplicateWarnings.length;
+    console.log(`\nDuplicate Person Suspicion: ${personFactsById.size} people checked`);
+    if (duplicateWarnings.length === 0) {
+      console.log(`  \u2713 No exact same-name/date or same-name/parents duplicate suspects found`);
+    } else if (verbose) {
+      console.log(`  ! ${duplicateWarnings.length} warnings:`);
+      for (const w of duplicateWarnings) console.log(`    ${w}`);
+    } else {
+      console.log(`  ! ${duplicateWarnings.length} warnings (run with --verbose to see)`);
     }
   }
 
