@@ -4,6 +4,7 @@ import { useData, usePeople, MEDIA_BASE } from '../useData'
 import FamilyFilterDropdown from '../components/FamilyFilterDropdown'
 import { useLightbox } from '../hooks/useLightbox'
 import Lightbox from '../components/Lightbox'
+import { CoupleGalleryView } from './CoupleGalleryPage'
 
 const TYPE_LABELS: Record<string, string> = {
   gravestone: 'Gravestones',
@@ -18,10 +19,18 @@ const TYPE_LABELS: Record<string, string> = {
 export default function MediaGallery() {
   const { media, sources } = useData()
   const people = usePeople()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [searchText, setSearchText] = useState(searchParams.get('search') || '')
   const [typeFilter, setTypeFilter] = useState('')
   const [familyFilter, setFamilyFilter] = useState<Set<string>>(new Set())
+  const view = searchParams.get('view') === 'couples' ? 'couples' : 'media'
+
+  function setView(nextView: 'media' | 'couples') {
+    const next = new URLSearchParams(searchParams)
+    if (nextView === 'couples') next.set('view', 'couples')
+    else next.delete('view')
+    setSearchParams(next)
+  }
 
   // Build a map from media path → source slug (via source.media linkage)
   const mediaSourceMap = useMemo(() => {
@@ -85,8 +94,33 @@ export default function MediaGallery() {
         {media.length} images and documents collected during research
       </p>
 
+      <div className="mb-6 inline-flex rounded-lg border border-stone-200 bg-white p-1">
+        <button
+          onClick={() => setView('media')}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            view === 'media'
+              ? 'bg-stone-800 text-white'
+              : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'
+          }`}
+        >
+          All Media
+        </button>
+        <button
+          onClick={() => setView('couples')}
+          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            view === 'couples'
+              ? 'bg-stone-800 text-white'
+              : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'
+          }`}
+        >
+          Couples
+        </button>
+      </div>
+
+      {view === 'couples' && <CoupleGalleryView embedded />}
+
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2 mb-8">
+      {view === 'media' && <div className="flex flex-wrap items-center gap-2 mb-8">
         <label className="relative">
           <span className="sr-only">Search media</span>
           <svg
@@ -134,10 +168,10 @@ export default function MediaGallery() {
             </button>
           )
         })}
-      </div>
+      </div>}
 
       {/* Grid */}
-      {filtered.length === 0 ? (
+      {view === 'media' && (filtered.length === 0 ? (
         <div className="text-center py-12 text-stone-400">No media matched the current filters.</div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -190,8 +224,8 @@ export default function MediaGallery() {
             </div>
           ))}
         </div>
-      )}
-      <Lightbox {...lightbox.lightboxProps} />
+      ))}
+      {view === 'media' && <Lightbox {...lightbox.lightboxProps} />}
     </div>
   )
 }

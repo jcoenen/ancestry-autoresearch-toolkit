@@ -1,12 +1,13 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { usePersonBySlug, usePersonById, useData, usePeople, formatYear, confidenceColor, getSourceSlugById, MEDIA_BASE, extractYear } from '../useData'
-import type { Person, SourceEntry } from '../types'
+import type { MediaEntry, Person, SourceEntry } from '../types'
 import { useLightbox } from '../hooks/useLightbox'
 import Lightbox from '../components/Lightbox'
 import { buildGenderMap } from './VerticalTreePrototypes'
 import { findRelationship } from '../relationshipCalculator'
 import type { RelationshipResult } from '../relationshipCalculator'
+import ConnectionBreadcrumbs from '../components/ConnectionBreadcrumbs'
 
 /* ── Biography text with clickable source links ──────────── */
 
@@ -586,10 +587,252 @@ function RelationshipCalculator({ person }: { person: Person }) {
   )
 }
 
+type EvidenceKind = 'life' | 'source' | 'media' | 'work' | 'military' | 'migration'
+
+interface EvidenceItem {
+  id: string
+  year: number | null
+  date: string
+  title: string
+  detail: string
+  kind: EvidenceKind
+  source?: SourceEntry
+  media?: MediaEntry
+}
+
+const EVIDENCE_COLORS: Record<EvidenceKind, { dot: string; badge: string }> = {
+  life: { dot: 'bg-amber-500', badge: 'bg-amber-50 text-amber-800 border-amber-200' },
+  source: { dot: 'bg-blue-500', badge: 'bg-blue-50 text-blue-800 border-blue-200' },
+  media: { dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  work: { dot: 'bg-violet-500', badge: 'bg-violet-50 text-violet-800 border-violet-200' },
+  military: { dot: 'bg-slate-500', badge: 'bg-slate-50 text-slate-800 border-slate-200' },
+  migration: { dot: 'bg-cyan-500', badge: 'bg-cyan-50 text-cyan-800 border-cyan-200' },
+}
+
+function hasEvidenceValue(value: string | undefined | null): value is string {
+  return !!value && value !== '—' && value !== '-' && value !== 'Unknown'
+}
+
+function sourceTypeLabel(source: SourceEntry): string {
+  const type = source.type || source.recordTypes?.[0] || 'source'
+  return type.replace(/_/g, ' ')
+}
+
+function eventYear(date: string): number | null {
+  return extractYear(date)
+}
+
+function normalizeEvidenceDate(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  const raw = String(value).trim()
+  if (!raw || raw === '—' || raw === '-' || raw.toLowerCase() === 'null' || raw.toLowerCase() === 'unknown') return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw) || /^\d{4}$/.test(raw) || raw.startsWith('~')) return raw
+  const parsed = new Date(raw)
+  if (!Number.isNaN(parsed.getTime()) && /GMT|UTC|\d{2}:\d{2}:\d{2}/.test(raw)) {
+    return parsed.toISOString().slice(0, 10)
+  }
+  return raw
+}
+
+function EvidenceTimeline({ person, personSources, personMedia, allSources }: {
+  person: Person
+  personSources: SourceEntry[]
+  personMedia: MediaEntry[]
+  allSources: SourceEntry[]
+}) {
+  const items = useMemo(() => {
+    const evidence: EvidenceItem[] = []
+    const mediaSourceByPath = new Map<string, SourceEntry>()
+    for (const source of allSources) {
+      for (const media of source.media || []) mediaSourceByPath.set(media.path, source)
+    }
+
+    function add(kind: EvidenceKind, date: unknown, title: string, detail: string, source?: SourceEntry, media?: MediaEntry) {
+      const cleanDate = normalizeEvidenceDate(date)
+      evidence.push({
+        id: [kind, cleanDate, title, source?.id, media?.path].filter(Boolean).join(':'),
+        year: eventYear(cleanDate),
+        date: cleanDate,
+        title,
+        detail,
+        kind,
+        source,
+        media,
+      })
+    }
+
+    if (hasEvidenceValue(person.born)) add('life', person.born, 'Birth', person.birthplace ? `Born in ${person.birthplace}` : 'Birth date recorded')
+    for (const spouse of person.spouses || []) {
+      if (hasEvidenceValue(spouse.marriageDate)) add('life', spouse.marriageDate, 'Marriage', `Married ${spouse.name}`)
+    }
+    if (hasEvidenceValue(person.immigration)) add('migration', person.immigration, 'Immigration', person.immigration)
+    if (hasEvidenceValue(person.emigration)) add('migration', person.emigration, 'Emigration', person.emigration)
+    if (hasEvidenceValue(person.naturalization)) add('migration', person.naturalization, 'Naturalization', person.naturalization)
+    if (hasEvidenceValue(person.military)) add('military', person.military, 'Military service', person.military)
+    for (const service of person.militaryService || []) {
+      const date = service.dates || service.conflict || service.notes || ''
+      add('military', date, service.conflict || service.branch || 'Military service',
+        [service.branch, service.role, service.rank, service.unit, service.place].filter(Boolean).join(' · ') || service.notes || 'Military service evidence')
+    }
+    for (const occupation of person.occupations || []) {
+      const date = occupation.dates || occupation.label || occupation.notes || ''
+      add('work', date, occupation.category || 'Occupation',
+        [occupation.label, occupation.role, occupation.employer, occupation.place].filter(Boolean).join(' · ') || 'Occupation evidence')
+    }
+    if (hasEvidenceValue(person.died)) add('life', person.died, 'Death', person.deathPlace ? `Died in ${person.deathPlace}` : 'Death date recorded')
+    if (hasEvidenceValue(person.burial)) add('life', person.died || '', 'Burial', [person.burial, person.burialPlot].filter(Boolean).join(' · '))
+
+    for (const source of personSources) {
+      add('source', source.date || source.year || '', sourceTypeLabel(source), source.title || source.person || source.id, source)
+    }
+
+    for (const media of personMedia) {
+      const linkedSource = mediaSourceByPath.get(media.path)
+      add('media', linkedSource?.date || '', media.type.replace(/_/g, ' '), media.description || media.path, linkedSource, media)
+    }
+
+    const deduped = new Map<string, EvidenceItem>()
+    for (const item of evidence) {
+      const key = [item.kind, item.year || 'undated', item.title, item.detail, item.source?.id, item.media?.path].join('|')
+      if (!deduped.has(key)) deduped.set(key, item)
+    }
+
+    return [...deduped.values()].sort((a, b) => {
+      const ay = a.year ?? 999999
+      const by = b.year ?? 999999
+      if (ay !== by) return ay - by
+      return (a.date || '').localeCompare(b.date || '') || a.title.localeCompare(b.title)
+    })
+  }, [allSources, person, personMedia, personSources])
+
+  if (items.length === 0) return null
+
+  return (
+    <section className="mb-8">
+      <div className="flex items-baseline justify-between gap-3 mb-3">
+        <h2 className="text-xl font-semibold text-stone-800">Evidence Timeline</h2>
+        <span className="text-xs text-stone-400">{items.length} evidence points</span>
+      </div>
+      <div className="rounded-lg border border-stone-200 bg-white p-5">
+        <div className="relative border-l border-stone-200 pl-5 space-y-4">
+          {items.map(item => {
+            const colors = EVIDENCE_COLORS[item.kind]
+            return (
+              <div key={item.id} className="relative">
+                <span className={`absolute -left-[26px] top-1.5 h-2.5 w-2.5 rounded-full ring-4 ring-white ${colors.dot}`} />
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-sm font-semibold text-stone-700">{item.year || 'Undated'}</span>
+                      <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold capitalize ${colors.badge}`}>
+                        {item.kind}
+                      </span>
+                      {item.date && <span className="text-xs text-stone-400">{item.date}</span>}
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-stone-800">{item.title}</div>
+                    <div className="mt-0.5 text-sm text-stone-600">{item.detail}</div>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    {item.source && (
+                      <Link to={`/sources/${item.source.slug}`} className="text-xs font-medium text-amber-700 hover:text-amber-900">
+                        {item.source.id}
+                      </Link>
+                    )}
+                    {item.media && (
+                      <a href={`${MEDIA_BASE}${item.media.path}`} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-emerald-700 hover:text-emerald-900">
+                        Media
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+type PersonTab = 'overview' | 'photos' | 'evidence' | 'family' | 'research'
+
+type DisplayMediaItem = {
+  media: MediaEntry
+  originalIndex: number
+}
+
+function PersonTabButton({ active, onClick, children }: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+        active
+          ? 'bg-stone-900 text-white'
+          : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50 hover:text-stone-900'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function PersonMediaSection({
+  mediaItems,
+  onOpen,
+}: {
+  mediaItems: DisplayMediaItem[]
+  onOpen: (index: number) => void
+}) {
+  if (mediaItems.length === 0) return null
+
+  return (
+    <section className="mb-8">
+      <div className="mb-3 flex items-baseline justify-between gap-4">
+        <h2 className="text-xl font-semibold text-stone-800">Photos & Media</h2>
+        <span className="text-sm text-stone-400">{mediaItems.length} item{mediaItems.length === 1 ? '' : 's'}</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {mediaItems.map(({ media: m, originalIndex }) => (
+          <div key={`${m.path}-${originalIndex}`} className="rounded-lg border border-stone-200 bg-white overflow-hidden hover:border-amber-300 hover:shadow-sm transition-all">
+            <button onClick={() => onOpen(originalIndex)} className="w-full">
+              <img
+                src={`${MEDIA_BASE}${m.path}`}
+                alt={m.description}
+                className="h-64 w-full object-cover bg-stone-100 cursor-zoom-in"
+                loading="lazy"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement
+                  target.alt = m.description
+                  target.className = 'h-64 w-full bg-stone-100 flex items-center justify-center text-stone-400 text-xs p-4'
+                }}
+              />
+            </button>
+            <div className="p-3">
+              <div className="text-sm text-stone-700 leading-snug">{m.description}</div>
+              <div className="text-xs text-stone-400 mt-1">{m.type}</div>
+              {m.sourceUrl && (
+                <a href={m.sourceUrl} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-amber-600 hover:text-amber-800 mt-1 block truncate">
+                  Source ↗
+                </a>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 export default function PersonPage() {
   const { slug } = useParams<{ slug: string }>()
   const person = usePersonBySlug(slug || '')
-  const { sources, media } = useData()
+  const { sources } = useData()
+  const [activeTab, setActiveTab] = useState<PersonTab>('overview')
 
   if (!person) {
     return (
@@ -605,14 +848,19 @@ export default function PersonPage() {
 
   const personSources = sources.filter(s => person.sources.includes(s.id))
   const personMedia = person.media
+  const mediaTypeRank: Record<string, number> = { portrait: 0, photo: 1, group_photo: 1, gravestone: 2, document: 3, scan: 3, newspaper: 4 }
+  const displayMediaItems = personMedia
+    .map((media, originalIndex) => ({ media, originalIndex }))
+    .sort((a, b) => (mediaTypeRank[a.media.type] ?? 9) - (mediaTypeRank[b.media.type] ?? 9))
   const mediaLightbox = useLightbox(personMedia)
+  const portrait = personMedia.find(m => m.type === 'portrait') || personMedia[0]
 
   const years = person.privacy
     ? ''
     : `${formatYear(person.born)} - ${formatYear(person.died)}`
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       {/* Breadcrumb */}
       <nav className="text-sm text-stone-400 mb-6 print-hide">
         <Link to="/people" className="hover:text-stone-600">People</Link>
@@ -623,40 +871,58 @@ export default function PersonPage() {
       </nav>
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-stone-800">{person.name}</h1>
-          {years && <p className="text-lg text-stone-500 mt-1">{years}</p>}
-          {person.marriedName && person.marriedName.length > 0 && (
-            <p className="text-sm text-stone-400 mt-1">
-              <span className="font-medium">Married name{person.marriedName.length > 1 ? 's' : ''}:</span>{' '}
-              {person.marriedName.join(' · ')}
-            </p>
+      <div className="mb-8 overflow-hidden rounded-lg border border-stone-200 bg-white">
+        <div className={`grid ${portrait && !person.privacy ? 'lg:grid-cols-[280px_1fr]' : ''}`}>
+          {portrait && !person.privacy && (
+            <button onClick={() => mediaLightbox.open(personMedia.indexOf(portrait))} className="bg-stone-100">
+              <img
+                src={`${MEDIA_BASE}${portrait.path}`}
+                alt={portrait.description}
+                className="h-full min-h-64 w-full object-cover"
+                loading="lazy"
+              />
+            </button>
           )}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => window.print()}
-            className="print-hide inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-stone-100 text-stone-700 hover:bg-amber-100 hover:text-amber-800 transition-colors"
-            title="Print this page"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-            </svg>
-            Print
-          </button>
-          <Link to={`/tree/${person.id}`}
-            className="print-hide inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-stone-100 text-stone-700 hover:bg-amber-100 hover:text-amber-800 transition-colors hover:no-underline">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-            </svg>
-            View in Tree
-          </Link>
-          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${confidenceColor(person.confidence)}`}>
-            {person.confidence}
-          </span>
+          <div className="p-6 sm:p-8">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-stone-900">{person.name}</h1>
+                {years && <p className="text-lg text-stone-500 mt-1">{years}</p>}
+                {person.marriedName && person.marriedName.length > 0 && (
+                  <p className="text-sm text-stone-400 mt-1">
+                    <span className="font-medium">Married name{person.marriedName.length > 1 ? 's' : ''}:</span>{' '}
+                    {person.marriedName.join(' · ')}
+                  </p>
+                )}
+              </div>
+              <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${confidenceColor(person.confidence)}`}>
+                {person.confidence}
+              </span>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              <button
+                onClick={() => window.print()}
+                className="print-hide inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-stone-100 text-stone-700 hover:bg-amber-100 hover:text-amber-800 transition-colors"
+                title="Print this page"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Print
+              </button>
+              <Link to={`/tree/${person.id}`}
+                className="print-hide inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-stone-100 text-stone-700 hover:bg-amber-100 hover:text-amber-800 transition-colors hover:no-underline">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                </svg>
+                View in Tree
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
+      <Lightbox {...mediaLightbox.lightboxProps} />
 
       {/* Privacy Notice */}
       {person.privacy && (
@@ -665,159 +931,156 @@ export default function PersonPage() {
         </div>
       )}
 
-      {/* Completeness — only for non-private people */}
-      {!person.privacy && <CompletenessCard person={person} personSources={personSources} />}
-
-      {/* Vital Information */}
       {!person.privacy && (
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold text-stone-800 mb-3">Vital Information</h2>
-          <div className="rounded-lg border border-stone-200 bg-white overflow-hidden">
-            <table className="w-full text-left">
-              <tbody className="divide-y divide-stone-100">
-                {person.born && (
-                  <VitalRow label="Born" value={String(person.born)} />
-                )}
-                {person.birthplace && (
-                  <VitalRow label="Birthplace" value={person.birthplace} />
-                )}
-                {person.died && (
-                  <VitalRow label="Died" value={String(person.died)} />
-                )}
-                {person.deathPlace && person.deathPlace !== '—' && (
-                  <VitalRow label="Death Place" value={person.deathPlace} />
-                )}
-                {person.causeOfDeath && person.causeOfDeath !== '—' && (
-                  <VitalRow label="Cause of Death" value={person.causeOfDeath} />
-                )}
-                {person.burial && person.burial !== '—' && (
-                  <VitalRow label="Burial" value={person.burial} />
-                )}
-                {person.burialPlot && person.burialPlot !== '—' && (
-                  <VitalRow label="Burial Plot" value={person.burialPlot} />
-                )}
-                {person.burialNotes && person.burialNotes !== '—' && (
-                  <VitalRow label="Burial Notes" value={person.burialNotes} />
-                )}
-                {person.religion && person.religion !== '—' && (
-                  <VitalRow label="Religion" value={person.religion} />
-                )}
-                {person.confirmation && person.confirmation !== '—' && (
-                  <VitalRow label="Confirmation" value={person.confirmation} />
-                )}
-                {person.occupation && person.occupation !== '—' && (
-                  <VitalRow label="Occupation" value={person.occupation} />
-                )}
-                {person.military && person.military !== '—' && (
-                  <VitalRow label="Military" value={person.military} />
-                )}
-                {person.immigration && person.immigration !== '—' && (
-                  <VitalRow label="Immigration" value={person.immigration} />
-                )}
-                {person.emigration && person.emigration !== '—' && (
-                  <VitalRow label="Emigration" value={person.emigration} />
-                )}
-                {person.naturalization && person.naturalization !== '—' && (
-                  <VitalRow label="Naturalization" value={person.naturalization} />
-                )}
-              </tbody>
-            </table>
+        <>
+          <div className="sticky top-14 z-20 mb-8 border-b border-stone-200 bg-stone-50/95 py-3 backdrop-blur print-hide">
+            <div className="flex flex-wrap gap-2">
+              <PersonTabButton active={activeTab === 'overview'} onClick={() => setActiveTab('overview')}>Overview</PersonTabButton>
+              <PersonTabButton active={activeTab === 'photos'} onClick={() => setActiveTab('photos')}>
+                Photos ({personMedia.length})
+              </PersonTabButton>
+              <PersonTabButton active={activeTab === 'evidence'} onClick={() => setActiveTab('evidence')}>
+                Evidence ({personSources.length})
+              </PersonTabButton>
+              <PersonTabButton active={activeTab === 'family'} onClick={() => setActiveTab('family')}>
+                Family ({person.spouses.length + person.children.length})
+              </PersonTabButton>
+              <PersonTabButton active={activeTab === 'research'} onClick={() => setActiveTab('research')}>Research</PersonTabButton>
+            </div>
           </div>
-        </section>
-      )}
 
-      {/* Family */}
-      <MiniTree person={person} />
+          {activeTab === 'overview' && (
+            <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
+              <main>
+                <ConnectionBreadcrumbs targetPersonIds={[person.id]} />
 
-      {/* Biography */}
-      {!person.privacy && person.biography && (
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold text-stone-800 mb-3">Biography</h2>
-          <div className="rounded-lg border border-stone-200 bg-white p-5">
-            {person.biography.split('\n\n').map((para, i) => (
-              <p key={i} className="text-stone-700 leading-relaxed mb-3 last:mb-0">
-                <BiographyText text={para} linkBoldToAnchor={i === 0 && person.birthDateAnalysis ? 'birth-date-analysis' : undefined} />
-              </p>
-            ))}
-          </div>
-        </section>
-      )}
+                <section className="mb-8">
+                  <h2 className="text-xl font-semibold text-stone-800 mb-3">Vital Information</h2>
+                  <div className="rounded-lg border border-stone-200 bg-white overflow-hidden">
+                    <table className="w-full text-left">
+                      <tbody className="divide-y divide-stone-100">
+                        {person.born && <VitalRow label="Born" value={String(person.born)} />}
+                        {person.birthplace && <VitalRow label="Birthplace" value={person.birthplace} />}
+                        {person.died && <VitalRow label="Died" value={String(person.died)} />}
+                        {person.deathPlace && person.deathPlace !== '—' && <VitalRow label="Death Place" value={person.deathPlace} />}
+                        {person.causeOfDeath && person.causeOfDeath !== '—' && <VitalRow label="Cause of Death" value={person.causeOfDeath} />}
+                        {person.burial && person.burial !== '—' && <VitalRow label="Burial" value={person.burial} />}
+                        {person.burialPlot && person.burialPlot !== '—' && <VitalRow label="Burial Plot" value={person.burialPlot} />}
+                        {person.burialNotes && person.burialNotes !== '—' && <VitalRow label="Burial Notes" value={person.burialNotes} />}
+                        {person.religion && person.religion !== '—' && <VitalRow label="Religion" value={person.religion} />}
+                        {person.confirmation && person.confirmation !== '—' && <VitalRow label="Confirmation" value={person.confirmation} />}
+                        {person.occupation && person.occupation !== '—' && <VitalRow label="Occupation" value={person.occupation} />}
+                        {person.military && person.military !== '—' && <VitalRow label="Military" value={person.military} />}
+                        {person.immigration && person.immigration !== '—' && <VitalRow label="Immigration" value={person.immigration} />}
+                        {person.emigration && person.emigration !== '—' && <VitalRow label="Emigration" value={person.emigration} />}
+                        {person.naturalization && person.naturalization !== '—' && <VitalRow label="Naturalization" value={person.naturalization} />}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
 
-      {/* Birth Date Analysis */}
-      {!person.privacy && person.birthDateAnalysis && (
-        <section id="birth-date-analysis" className="mb-8 scroll-mt-8">
-          <h2 className="text-xl font-semibold text-stone-800 mb-3">Birth Date Analysis</h2>
-          <div className="rounded-lg border border-amber-200 bg-amber-50/30 p-5">
-            <MarkdownSection content={person.birthDateAnalysis} />
-          </div>
-        </section>
-      )}
+                {person.biography && (
+                  <section className="mb-8">
+                    <h2 className="text-xl font-semibold text-stone-800 mb-3">Biography</h2>
+                    <div className="rounded-lg border border-stone-200 bg-white p-5">
+                      {person.biography.split('\n\n').map((para, i) => (
+                        <p key={i} className="text-stone-700 leading-relaxed mb-3 last:mb-0">
+                          <BiographyText text={para} linkBoldToAnchor={i === 0 && person.birthDateAnalysis ? 'birth-date-analysis' : undefined} />
+                        </p>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </main>
+              <aside>
+                <CompletenessCard person={person} personSources={personSources} />
+                <section className="mb-6">
+                  <h2 className="text-xl font-semibold text-stone-800 mb-3">Quick Links</h2>
+                  <div className="rounded-lg border border-stone-200 bg-white p-4 space-y-2">
+                    <button onClick={() => setActiveTab('evidence')} className="block w-full text-left text-sm font-medium text-amber-700 hover:text-amber-900">
+                      View evidence timeline
+                    </button>
+                    {personMedia.length > 0 && (
+                      <button onClick={() => setActiveTab('photos')} className="block w-full text-left text-sm font-medium text-amber-700 hover:text-amber-900">
+                        View photos and media
+                      </button>
+                    )}
+                    <button onClick={() => setActiveTab('family')} className="block w-full text-left text-sm font-medium text-amber-700 hover:text-amber-900">
+                      View family relationships
+                    </button>
+                    <button onClick={() => setActiveTab('research')} className="block w-full text-left text-sm font-medium text-amber-700 hover:text-amber-900">
+                      View research notes
+                    </button>
+                  </div>
+                </section>
+              </aside>
+            </div>
+          )}
 
-      {/* Sources */}
-      {!person.privacy && personSources.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold text-stone-800 mb-3">Sources</h2>
-          <div className="rounded-lg border border-stone-200 bg-white divide-y divide-stone-100">
-            {personSources.map(s => (
-              <Link key={s.id} to={`/sources/${s.slug}`} className="px-5 py-3 flex items-baseline justify-between gap-4 hover:bg-stone-50 block">
-                <div>
-                  <span className="text-sm font-mono text-amber-700">{s.id}</span>
-                  <span className="text-sm text-stone-600 ml-2">{s.title || s.person}</span>
-                </div>
-                <span className="text-xs text-stone-400 shrink-0">{s.type.replace(/_/g, ' ')}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
+          {activeTab === 'photos' && (
+            <PersonMediaSection mediaItems={displayMediaItems} onOpen={mediaLightbox.open} />
+          )}
 
-      {/* Media */}
-      {!person.privacy && personMedia.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-xl font-semibold text-stone-800 mb-3">Media ({personMedia.length})</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {personMedia.map((m, i) => (
-              <div key={i} className="rounded-lg border border-stone-200 bg-white overflow-hidden hover:border-amber-300 hover:shadow-sm transition-all">
-                <button onClick={() => mediaLightbox.open(i)} className="w-full">
-                  <img
-                    src={`${MEDIA_BASE}${m.path}`}
-                    alt={m.description}
-                    className="w-full object-cover bg-stone-100 cursor-zoom-in"
-                    loading="lazy"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement
-                      target.alt = m.description
-                      target.className = 'w-full aspect-square bg-stone-100 flex items-center justify-center text-stone-400 text-xs p-4'
-                    }}
-                  />
-                </button>
-                <div className="p-2">
-                  <div className="text-xs text-stone-700">{m.description}</div>
-                  <div className="text-xs text-stone-400 mt-0.5">{m.type}</div>
-                  {m.sourceUrl && (
-                    <a href={m.sourceUrl} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-amber-600 hover:text-amber-800 mt-1 block truncate">
-                      Source ↗
-                    </a>
-                  )}
-                </div>
+          {activeTab === 'evidence' && (
+            <>
+              <EvidenceTimeline person={person} personSources={personSources} personMedia={personMedia} allSources={sources} />
+
+              {personSources.length > 0 && (
+                <section className="mb-8">
+                  <h2 className="text-xl font-semibold text-stone-800 mb-3">Sources</h2>
+                  <div className="rounded-lg border border-stone-200 bg-white divide-y divide-stone-100">
+                    {personSources.map(s => (
+                      <Link key={s.id} to={`/sources/${s.slug}`} className="px-5 py-3 flex items-baseline justify-between gap-4 hover:bg-stone-50 block">
+                        <div>
+                          <span className="text-sm font-mono text-amber-700">{s.id}</span>
+                          <span className="text-sm text-stone-600 ml-2">{s.title || s.person}</span>
+                        </div>
+                        <span className="text-xs text-stone-400 shrink-0">{s.type.replace(/_/g, ' ')}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </>
+          )}
+
+          {activeTab === 'family' && (
+            <>
+              <MiniTree person={person} />
+              <LineageSection person={person} />
+              <DescendantsSection person={person} />
+              <div className="print-hide">
+                <RelationshipCalculator person={person} />
               </div>
-            ))}
-          </div>
-          <Lightbox {...mediaLightbox.lightboxProps} />
-        </section>
+            </>
+          )}
+
+          {activeTab === 'research' && (
+            <div className="grid gap-8 lg:grid-cols-[320px_1fr]">
+              <aside>
+                <CompletenessCard person={person} personSources={personSources} />
+              </aside>
+              <main>
+                {person.birthDateAnalysis ? (
+                  <section id="birth-date-analysis" className="mb-8 scroll-mt-8">
+                    <h2 className="text-xl font-semibold text-stone-800 mb-3">Birth Date Analysis</h2>
+                    <div className="rounded-lg border border-amber-200 bg-amber-50/30 p-5">
+                      <MarkdownSection content={person.birthDateAnalysis} />
+                    </div>
+                  </section>
+                ) : (
+                  <section className="mb-8">
+                    <h2 className="text-xl font-semibold text-stone-800 mb-3">Research Notes</h2>
+                    <div className="rounded-lg border border-stone-200 bg-white p-5 text-sm text-stone-500">
+                      No dedicated research notes are currently available for this person.
+                    </div>
+                  </section>
+                )}
+              </main>
+            </div>
+          )}
+        </>
       )}
-
-      {/* Lineage */}
-      <LineageSection person={person} />
-
-      {/* Descendants */}
-      <DescendantsSection person={person} />
-
-      {/* Relationship Calculator — hidden in print */}
-      <div className="print-hide">
-        <RelationshipCalculator person={person} />
-      </div>
     </div>
   )
 }

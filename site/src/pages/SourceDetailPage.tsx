@@ -5,6 +5,7 @@ import type { MediaEntry } from '../types'
 import { useLightbox } from '../hooks/useLightbox'
 import Lightbox from '../components/Lightbox'
 import type { Person } from '../types'
+import ConnectionBreadcrumbs from '../components/ConnectionBreadcrumbs'
 
 function PersonMention({ name }: { name: string }) {
   const person = usePersonByName(name)
@@ -101,6 +102,11 @@ export default function SourceDetailPage() {
         </span>
       </div>
 
+      <ConnectionBreadcrumbs
+        targetPersonIds={quickPeople.map(person => person.id)}
+        eyebrow="Why this source is here"
+      />
+
       {/* Metadata */}
       <section className="mb-6">
         <div className="rounded-lg border border-stone-200 bg-white overflow-hidden">
@@ -128,9 +134,13 @@ export default function SourceDetailPage() {
                 <tr>
                   <td className="px-5 py-2.5 text-sm font-medium text-stone-500 w-40">Original URL</td>
                   <td className="px-5 py-2.5 text-sm">
-                    <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-amber-700 hover:text-amber-900 break-all">
-                      {source.url}
-                    </a>
+                    {/^https?:\/\//.test(source.url) ? (
+                      <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-amber-700 hover:text-amber-900 break-all">
+                        {source.url}
+                      </a>
+                    ) : (
+                      <span className="text-stone-700">{source.url}</span>
+                    )}
                   </td>
                 </tr>
               )}
