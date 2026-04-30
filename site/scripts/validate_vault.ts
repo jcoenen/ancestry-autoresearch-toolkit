@@ -18,6 +18,7 @@ import {
   type ValidationResult,
   type PersonRelationships,
 } from './lib/validate-helpers.js';
+import { slugify } from './lib/build-helpers.js';
 import { calculatePublicScope, type ScopeRelationship } from './lib/public-scope.js';
 
 // VAULT_ROOT env var points to the vault directory (e.g. Coenen_Genealogy/).
@@ -354,6 +355,9 @@ function validateSourceFiles(sourceFiles: string[]): {
 
     // Cemetery memorials use ## Memorial Data instead of ## Full Text
     if (fm.source_type === 'cemetery_memorial') {
+      if (Array.isArray(fm.person_ids) && fm.person_ids.length > 0 && (!Array.isArray(fm.subject_person_ids) || fm.subject_person_ids.length === 0)) {
+        result.errors.push(`sources/${file}: cemetery memorial has person_ids but no subject_person_ids — mark the memorial subject so source pages and linked people are precise`);
+      }
       if (!content.includes('## Memorial Data') && !content.includes('## Full Text')) {
         result.errors.push(`sources/${file}: missing ## Memorial Data or ## Full Text section`);
       }
@@ -421,6 +425,7 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
   const relationships: PersonRelationships[] = [];
   const scopeRelationships: ScopeRelationship[] = [];
   const personMediaRefs = new Map<string, string[]>(); // file -> media ref paths
+  const personSlugEntries: Array<{ baseSlug: string; finalSlug: string; file: string; id: string; born: string }> = [];
   let checked = 0;
 
   const REQUIRED_PERSON_FIELDS = [
@@ -786,6 +791,41 @@ function validatePersonFiles(personFiles: string[], sourceIdSet: Set<string>, al
       spouses: spouseIds,
       publicScope: typeof fm.public_scope === 'string' ? fm.public_scope : undefined,
     });
+
+    const baseSlug = slugify(String(fm.name || ''));
+    const bornYear = String(fm.born || '').match(/\d{4}/)?.[0] || '';
+    personSlugEntries.push({
+      baseSlug,
+      finalSlug: baseSlug,
+      file,
+      id: fm.gedcom_id ? String(fm.gedcom_id) : '',
+      born: bornYear,
+    });
+  }
+
+  const baseCounts = new Map<string, number>();
+  for (const entry of personSlugEntries) {
+    if (!entry.baseSlug) continue;
+    baseCounts.set(entry.baseSlug, (baseCounts.get(entry.baseSlug) ?? 0) + 1);
+  }
+  const usedFinalSlugs = new Map<string, string>();
+  for (const entry of personSlugEntries) {
+    if (!entry.baseSlug) continue;
+    const duplicateBase = (baseCounts.get(entry.baseSlug) ?? 0) > 1;
+    let finalSlug = duplicateBase
+      ? `${entry.baseSlug}-${entry.born || entry.id.toLowerCase()}`
+      : entry.baseSlug;
+    if (!finalSlug) finalSlug = entry.id ? `person-${entry.id.toLowerCase()}` : '';
+    while (usedFinalSlugs.has(finalSlug) && entry.id) {
+      finalSlug = `${finalSlug}-${entry.id.toLowerCase()}`;
+    }
+    entry.finalSlug = finalSlug;
+    const existing = usedFinalSlugs.get(finalSlug);
+    if (existing) {
+      result.errors.push(`people/${entry.file}: generated route slug "${finalSlug}" collides with ${existing} — person pages may route to the wrong person`);
+    } else {
+      usedFinalSlugs.set(finalSlug, `people/${entry.file}`);
+    }
   }
 
   return { result, checked, personSourceRefs, gedcomIds, relationships, scopeRelationships, personMediaRefs };

@@ -41,11 +41,14 @@ const features: Feature[] = [
   {
     title: 'Person Pages',
     path: '/people',
-    description: 'Each person in the vault gets a detailed profile page with everything known about their life.',
+    description: 'Each person in the vault gets a detailed profile page with family context, evidence, media, and everything known about their life.',
     details: [
       'Vital information table — 25+ fields including birth, death, marriage, burial, religion, occupation, military service, immigration, education, and more.',
       'Biography — Narrative text with inline source citations that link to source detail pages.',
-      'Media gallery — Photos, gravestones, newspaper clippings, and documents associated with the person. Click to open in a full-screen lightbox with swipe navigation.',
+      'Tabbed layout — Overview, Photos, Evidence, Sources, and Family views keep long profiles easier to scan.',
+      'Media-first photos tab — Portraits, gravestones, newspaper clippings, and documents associated with the person. Click to open in a full-screen lightbox with swipe navigation.',
+      'Evidence timeline — Merges source dates, life events, census records, obituaries, cemetery records, documents, occupations, military service, immigration, and media into one chronological view.',
+      'Relationship breadcrumbs — Shows the connection path from the configured root person to the person being viewed, when a path can be found.',
       'Family units — Spouses and children organized by marriage, with links to all family members.',
       'Confidence badge — Shows data quality level (high, moderate, low, stub) based on source coverage.',
     ],
@@ -79,7 +82,9 @@ const features: Feature[] = [
       'Name frequency analysis — most common first names and surnames.',
       'Birth and death decade distribution — bar charts showing when people were born and died.',
       'Lifespan statistics — average lifespan, longest-lived, shortest-lived.',
-      'Occupation and religion breakdowns.',
+      'Occupation categories — high-level categories such as Agriculture / Farming, Education, Business / Management, Trades / Manufacturing, Military, and Transportation.',
+      'Military service breakdowns — Branch and conflict summaries, with drilldowns to exactly the matching people.',
+      'Immigration, birthplace, religion, cemetery, and source-type charts with drilldowns to filtered people, sources, or cemetery views.',
     ],
   },
   {
@@ -88,18 +93,34 @@ const features: Feature[] = [
     description: 'Search and browse all research sources — obituaries, cemetery records, census data, church registers, and more.',
     details: [
       'Filterable by source type (obituary, cemetery, church, census, etc.).',
-      'Each source links to a detail page with full transcription, extracted facts, media, and the list of people referenced.',
+      'Source detail pages put the full transcription or record text first, followed by source details, media, extracted facts, notes, and linked people.',
+      'People-in-source cards distinguish direct subjects from other mentioned relatives, with relationship context where available.',
+      'Source-to-person navigation makes it easy to jump from an obituary, cemetery memorial, or document back to the relevant people.',
       'Source reliability ratings and OCR verification status.',
     ],
   },
   {
     title: 'Media Gallery',
     path: '/gallery',
-    description: 'Browse all images and documents in the collection.',
+    description: 'Browse portraits, couple photos, gravestones, documents, newspapers, and recently added media in a visual gallery.',
     details: [
-      'Filter by media type (gravestone, portrait, newspaper, document) and family line.',
+      'Header buckets — Portrait Wall, Couples, Gravestones, Documents, and Recently Added give quick entry points into the collection.',
+      'Couples view — Wedding and couple portraits are grouped by pair, with links to both people when known.',
+      'Searchable family filter — Narrow gallery views to a family line without scrolling a huge surname list.',
+      'Filter by media type (gravestone, portrait, newspaper, document, group photo) and family line.',
       'Full-screen lightbox with keyboard navigation (arrow keys, Escape), mobile swipe, and adjacent image preloading.',
-      'Metadata bar showing person, description, and media type.',
+      'Metadata bar showing person, description, media type, source links, and related person tags.',
+    ],
+  },
+  {
+    title: 'Cemetery Browser',
+    path: '/cemeteries',
+    description: 'Browse burial places as research objects instead of only as individual person facts.',
+    details: [
+      'Cemetery list aggregates people by burial location and keeps plot, section, lot, and grave details out of the cemetery name itself.',
+      'Family filter helps isolate where a particular line is buried.',
+      'Person links make cemetery clusters useful for lateral branch cleanup and local cemetery research.',
+      'Find a Grave canonical naming is supported by the vault conventions and validation cleanup workflow.',
     ],
   },
   {
@@ -109,6 +130,7 @@ const features: Feature[] = [
     details: [
       'Search by name, birthplace, occupation, biography text, source content, or notes.',
       'Highlighted matching snippets in results.',
+      'Exact keyword result mode supports deep links from stats charts and other drilldowns.',
       'Cmd+K (or Ctrl+K) keyboard shortcut to open search from anywhere.',
     ],
   },
@@ -126,6 +148,16 @@ const features: Feature[] = [
     ],
   },
   {
+    title: 'Recent Additions',
+    path: '/recent',
+    description: 'A newest-first view of records and media added to the vault.',
+    details: [
+      'Shows recently created or updated people, sources, and media using vault metadata.',
+      'Media cards link back to their source records where possible.',
+      'Useful for reviewing a long research session without digging through git history.',
+    ],
+  },
+  {
     title: 'Immigration Stories',
     path: '/immigration',
     description: 'Narrative pages about family immigration journeys, rendered from vault markdown.',
@@ -137,11 +169,24 @@ const features: Feature[] = [
   {
     title: 'Privacy Controls',
     path: '/people',
-    description: 'Protect living or sensitive individuals while keeping them in the family tree structure.',
+    description: 'Protect living or sensitive individuals while keeping them in the family tree structure and keeping the public site in scope.',
     details: [
       'Set privacy: true on any person file to strip all personal details from the published site.',
       'Private people keep their name and position in the tree but dates, places, vitals, biography, sources, and media are all redacted.',
+      'Public scope filtering can exclude people who are not blood relatives, spouses of blood relatives, or explicitly allowed exceptions.',
       'GEDCOM export emits minimal records with RESN confidential for private individuals.',
+    ],
+  },
+  {
+    title: 'Vault Validation',
+    path: '/features',
+    description: 'The toolkit includes validation and audit tooling so the markdown vault stays reliable as it grows.',
+    details: [
+      'Person/source/media linkage checks — Every rendered media item must be linked from the media index, at least one source, and relevant person files.',
+      'Public scope checks — Warn or fail when out-of-scope people would appear on the published site.',
+      'Structured vital checks — Validates recognized vital fields, source IDs, person IDs, reciprocal relationships, and source person links.',
+      'Media category checks — Flags missing local files and suspicious portrait/group/gravestone category mismatches before deploy.',
+      'Research audits — Search discoverability, stats coverage, obituary portraits, source-person links, and place-value audits help guide cleanup work.',
     ],
   },
 ]
@@ -237,7 +282,7 @@ export default function FeaturesPage() {
               <li>Locations geocoded via Nominatim (cached)</li>
               <li>Single JSON output for the entire site</li>
               <li>Privacy redaction applied before output</li>
-              <li>194 unit tests covering build + validation</li>
+              <li>Validation and audit scripts for vault consistency</li>
             </ul>
           </div>
         </div>

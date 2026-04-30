@@ -88,6 +88,38 @@ interface PersonData {
   _publicScope?: string;
 }
 
+function yearFromDateText(value: string): string {
+  const match = String(value || '').match(/\d{4}/);
+  return match ? match[0] : '';
+}
+
+function assignUniquePersonSlugs(people: PersonData[]) {
+  const byBaseSlug = new Map<string, PersonData[]>();
+  for (const person of people) {
+    const base = person.slug || slugify(person.name || person.id || 'person');
+    person.slug = base;
+    byBaseSlug.set(base, [...(byBaseSlug.get(base) ?? []), person]);
+  }
+
+  const used = new Set<string>();
+  for (const [base, matches] of byBaseSlug) {
+    const needsDisambiguation = matches.length > 1 || used.has(base);
+    for (const person of matches) {
+      let candidate = base;
+      if (needsDisambiguation) {
+        const year = yearFromDateText(person.born);
+        candidate = year ? `${base}-${year}` : `${base}-${person.id.toLowerCase()}`;
+      }
+      if (!candidate) candidate = person.id ? `person-${person.id.toLowerCase()}` : 'person';
+      while (used.has(candidate)) {
+        candidate = `${candidate}-${person.id.toLowerCase()}`;
+      }
+      person.slug = candidate;
+      used.add(candidate);
+    }
+  }
+}
+
 interface MilitaryService {
   branch: string;
   conflict: string;
@@ -611,6 +643,8 @@ async function main() {
   for (const person of people) {
     delete (person as Partial<PersonData>)._publicScope;
   }
+
+  assignUniquePersonSlugs(people);
 
   // Parse media
   const media = parseMediaIndex();
