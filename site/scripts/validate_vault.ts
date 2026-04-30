@@ -141,6 +141,7 @@ const ROOT = process.env.VAULT_ROOT
   : resolve(import.meta.dirname, '..', '..');
 const SOURCES_DIR = resolve(ROOT, 'sources');
 const PEOPLE_DIR = resolve(ROOT, 'people');
+const MEDIA_DIR = resolve(ROOT, 'media');
 const MEDIA_INDEX = resolve(ROOT, 'media', '_Media_Index.md');
 const CONFIG_FILE = resolve(ROOT, 'site-config.json');
 
@@ -875,6 +876,22 @@ function validateMediaIndex(): { result: ValidationResult; entryCount: number; n
     } else {
       localPaths.add(localPath);
       indexPaths.add(localPath);
+    }
+
+    if (!existsSync(resolve(MEDIA_DIR, localPath))) {
+      result.errors.push(`_Media_Index.md line ${i + 1}: local media file "${localPath}" does not exist`);
+    }
+
+    const description = parts[4].toLowerCase();
+    const looksLikeCemeteryImage = /\b(gravestone|headstone|grave marker|mausoleum|cemetery|family plot|plot view)\b/.test(description);
+    const looksLikeDocumentImage = /\b(obituary|newspaper|death certificate|birth certificate|marriage record|census|ship manifest|register scan)\b/.test(description);
+    const looksLikePortraitImage = /\b(portrait photo|studio portrait|wedding portrait|person photo)\b/.test(description);
+
+    if ((localPath.startsWith('portraits/') || localPath.startsWith('group/')) && looksLikeCemeteryImage) {
+      result.warnings.push(`_Media_Index.md line ${i + 1}: "${localPath}" is in a portrait/group folder but description looks like cemetery media`);
+    }
+    if (localPath.startsWith('gravestones/') && (looksLikeDocumentImage || looksLikePortraitImage)) {
+      result.warnings.push(`_Media_Index.md line ${i + 1}: "${localPath}" is in gravestones/ but description looks like a document, newspaper, or portrait`);
     }
 
     // Track NEWS and DOC entries for processing check
