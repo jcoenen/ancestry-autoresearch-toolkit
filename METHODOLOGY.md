@@ -207,6 +207,22 @@ Run the place audit to find likely cleanup candidates:
 npm run audit:places
 ```
 
+### Coverage Audits
+
+Use the report-only audits to find data that needs careful review before promotion or cleanup:
+
+```bash
+npm run audit:names
+npm run audit:obituary-completeness -- --needs-review-only
+npm run audit:extractor-coverage -- --needs-review-only
+```
+
+- `audit:names` checks whether primary person names follow the birth-name standard and whether married names belong in `Married Name`.
+- `audit:obituary-completeness` finds formal obituary sources missing structure/media checks and non-obituary sources that appear to contain obituary text.
+- `audit:extractor-coverage` checks whether extractor-backed sources show evidence of source text, media, portrait/photo-tab review, or authenticated retrieval where appropriate.
+
+### GEDCOM ID Audit
+
 Use the reported `Next GEDCOM ID` value. The command scans `people/**/*.md`, reports the highest current ID, and flags duplicate or malformed `gedcom_id` values.
 
 ### When to Create a Person File (CRITICAL)
