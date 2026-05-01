@@ -45,6 +45,21 @@ function sourceLabel(card: MediaCard) {
   return ''
 }
 
+function normalizeText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function spouseMentionedInMedia(media: MediaEntry, person: Person) {
+  const haystack = normalizeText([media.person, media.description].join(' '))
+  return person.spouses.some(spouse => spouse.name && haystack.includes(normalizeText(spouse.name)))
+}
+
+function isCoupleMediaCard(card: MediaCard) {
+  if (!['portrait', 'photo', 'group_photo'].includes(card.media.type)) return false
+  if (card.people.length >= 2) return true
+  return Boolean(card.person && spouseMentionedInMedia(card.media, card.person))
+}
+
 function MediaTile({ card, index, onOpen, compact = false }: {
   card: MediaCard
   index: number
@@ -52,6 +67,9 @@ function MediaTile({ card, index, onOpen, compact = false }: {
   compact?: boolean
 }) {
   const primary = card.person || card.people[0]
+  const title = primary && card.people.length === 1 && spouseMentionedInMedia(card.media, primary)
+    ? card.media.person || primary.name
+    : primary?.name
   return (
     <article className="overflow-hidden rounded-lg border border-stone-200 bg-white hover:border-amber-300 hover:shadow-sm transition-all">
       <button onClick={() => onOpen(index)} className="block w-full bg-stone-100">
@@ -67,7 +85,7 @@ function MediaTile({ card, index, onOpen, compact = false }: {
           <div>
             {primary ? (
               <Link to={`/people/${primary.slug}`} className="text-sm font-semibold text-stone-800 hover:text-amber-700">
-                {primary.name}
+                {title}
               </Link>
             ) : (
               <div className="text-sm font-semibold text-stone-800">{card.media.person || 'Unassigned media'}</div>
@@ -182,7 +200,7 @@ export default function GalleryLabPage() {
 
   const coupleCards = useMemo(() => {
     return allCards
-      .filter(card => card.people.length >= 2 && ['portrait', 'photo', 'group_photo'].includes(card.media.type))
+      .filter(isCoupleMediaCard)
       .filter(card => card.people.some(familyMatches))
       .sort((a, b) => (extractYear(a.people[0]?.born || '') || 9999) - (extractYear(b.people[0]?.born || '') || 9999))
   }, [allCards, familySearch])

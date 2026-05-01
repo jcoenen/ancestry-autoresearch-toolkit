@@ -8,6 +8,7 @@ interface CoupleCard {
   id: string
   media: MediaEntry
   people: Person[]
+  spouseName: string
   families: string[]
   sourceSlug: string
   marriageDate: string
@@ -29,6 +30,19 @@ function marriageDateFor(a: Person, b: Person): string {
 
 function isSpousePair(a: Person, b: Person): boolean {
   return a.spouses.some(sp => sp.id === b.id) || b.spouses.some(sp => sp.id === a.id)
+}
+
+function normalizeText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function mentionedSpouseName(media: MediaEntry, person: Person): string {
+  const haystack = normalizeText([media.person, media.description].join(' '))
+  return person.spouses.find(spouse => spouse.name && haystack.includes(normalizeText(spouse.name)))?.name || ''
+}
+
+function presentString(value: string | undefined): value is string {
+  return Boolean(value)
 }
 
 export function CoupleGalleryView({ embedded = false }: { embedded?: boolean }) {
@@ -61,26 +75,29 @@ export function CoupleGalleryView({ embedded = false }: { embedded?: boolean }) 
 
     for (const m of media) {
       if (m.type !== 'portrait' && m.type !== 'group_photo') continue
-      const linkedPeople = (peopleByMediaPath.get(m.path) || []).filter(p => !p.privacy)
-      if (linkedPeople.length < 2) continue
+      const linkedPeople = peopleByMediaPath.get(m.path) || []
 
       const spousePair = linkedPeople.flatMap((a, i) =>
         linkedPeople.slice(i + 1).map(b => [a, b] as [Person, Person])
       ).find(([a, b]) => isSpousePair(a, b))
 
-      if (!spousePair) continue
-      const [a, b] = spousePair
-      const key = `${m.path}:${a.id}:${b.id}`
+      const inferredPerson = !spousePair && linkedPeople.length === 1 ? linkedPeople[0] : null
+      const inferredSpouseName = inferredPerson ? mentionedSpouseName(m, inferredPerson) : ''
+      if (!spousePair && !inferredSpouseName) continue
+
+      const [a, b] = spousePair || [inferredPerson!, undefined]
+      const key = `${m.path}:${a.id}:${b?.id || inferredSpouseName}`
       if (seen.has(key)) continue
       seen.add(key)
 
       result.push({
         id: key,
         media: m,
-        people: [a, b],
-        families: [...new Set([a.family, b.family].filter(Boolean))].sort(),
+        people: b ? [a, b] : [a],
+        spouseName: b ? '' : inferredSpouseName,
+        families: [...new Set([a.family, b?.family].filter(presentString))].sort(),
         sourceSlug: sourceByMediaPath.get(m.path) || '',
-        marriageDate: marriageDateFor(a, b),
+        marriageDate: b ? marriageDateFor(a, b) : '',
       })
     }
 
@@ -169,10 +186,14 @@ export function CoupleGalleryView({ embedded = false }: { embedded?: boolean }) 
                       <h2 className="text-base font-semibold text-stone-800">
                         <Link to={`/people/${a.slug}`} className="hover:text-amber-700">{a.name}</Link>
                         <span className="text-stone-400"> & </span>
-                        <Link to={`/people/${b.slug}`} className="hover:text-amber-700">{b.name}</Link>
+                        {b ? (
+                          <Link to={`/people/${b.slug}`} className="hover:text-amber-700">{b.name}</Link>
+                        ) : (
+                          <span>{card.spouseName}</span>
+                        )}
                       </h2>
                       <p className="mt-1 text-xs text-stone-500">
-                        {[years(a), years(b)].filter(Boolean).join(' · ')}
+                        {[years(a), b ? years(b) : ''].filter(Boolean).join(' · ')}
                       </p>
                     </div>
                     {card.marriageDate && (
