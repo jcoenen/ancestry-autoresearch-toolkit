@@ -207,6 +207,7 @@ const PEOPLE_DIR = resolve(ROOT, 'people');
 const MEDIA_DIR = resolve(ROOT, 'media');
 const MEDIA_INDEX = resolve(ROOT, 'media', '_Media_Index.md');
 const CONFIG_FILE = resolve(ROOT, 'site-config.json');
+const VALIDATE_LOCAL_MEDIA_FILES = process.env.VALIDATE_LOCAL_MEDIA_FILES !== 'false';
 
 let siteConfig: Record<string, unknown> = {};
 if (existsSync(CONFIG_FILE)) {
@@ -1057,7 +1058,7 @@ function validateMediaIndex(): { result: ValidationResult; entryCount: number; n
       indexPaths.add(localPath);
     }
 
-    if (!existsSync(resolve(MEDIA_DIR, localPath))) {
+    if (VALIDATE_LOCAL_MEDIA_FILES && !existsSync(resolve(MEDIA_DIR, localPath))) {
       result.errors.push(`_Media_Index.md line ${i + 1}: local media file "${localPath}" does not exist`);
     }
 
