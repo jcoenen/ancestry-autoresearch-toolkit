@@ -221,6 +221,17 @@ npm run audit:extractor-coverage -- --needs-review-only
 - `audit:obituary-completeness` finds formal obituary sources missing structure/media checks and non-obituary sources that appear to contain obituary text.
 - `audit:extractor-coverage` checks whether extractor-backed sources show evidence of source text, media, portrait/photo-tab review, or authenticated retrieval where appropriate.
 
+### Safe Backfill Commands
+
+Use dry-run first, then `--write` only when the reported changes are exact relational fixes:
+
+```bash
+npm run backfill:person-sources
+npm run backfill:person-sources -- --write
+```
+
+`backfill:person-sources` only adds a source ID to a person file when the source already lists that exact `gedcom_id` in `person_ids`. It does not match names, parse `persons:` display text, or promote research leads.
+
 ### GEDCOM ID Audit
 
 Use the reported `Next GEDCOM ID` value. The command scans `people/**/*.md`, reports the highest current ID, and flags duplicate or malformed `gedcom_id` values.
